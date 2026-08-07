@@ -207,7 +207,7 @@ class _MessageBubble extends StatelessWidget {
          return const SizedBox();
        }
        return Card(
-         color: AppColors.criticalBg.withOpacity(0.5),
+         color: AppColors.criticalBg.withValues(alpha: 0.5),
          margin: const EdgeInsets.symmetric(vertical: 8),
          child: Padding(
            padding: const EdgeInsets.all(12),

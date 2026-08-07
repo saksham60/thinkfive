@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     app_name: str = "thinkfive-backend"
     app_version: str = "1.0.0"
     environment: Literal["development", "staging", "production"] = "development"
-    debug: bool = False
+    debug: bool = Field(False, validation_alias="APP_DEBUG")
     log_level: str = "INFO"
 
     # Server

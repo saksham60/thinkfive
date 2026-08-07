@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'customer_home_page.dart';
-import '../../chat/presentation/pages/ai_assistant_page.dart';
-import '../../alerts/presentation/pages/alerts_page.dart';
-import '../../cases/presentation/pages/cases_page.dart';
+import 'package:mobile/features/dashboard/presentation/pages/customer_home_page.dart';
+import 'package:mobile/features/chat/presentation/pages/ai_assistant_page.dart';
+import 'package:mobile/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:mobile/features/cases/presentation/pages/cases_page.dart';
 
 class CustomerShell extends StatefulWidget {
   const CustomerShell({super.key});

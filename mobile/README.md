@@ -1,16 +1,31 @@
-# mobile
+# ThinkFive Mobile App
 
-A new Flutter project.
+The Flutter mobile application for the ThinkFive AI Banking platform.
 
-## Getting Started
+## Architecture
+- **State Management**: `flutter_bloc`
+- **Routing**: `go_router`
+- **Networking**: `dio` with cookie persistence via `flutter_secure_storage`
+- **Dependency Injection**: Simple Service Locator (`Dependencies` class)
+- **Data Models**: Clean Domain Entities / DTOs using Equatable
 
-This project is a starting point for a Flutter application.
+## Setup and Run
+Use `--dart-define=USE_FIXTURES=true` to run against simulated data without requiring the backend:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter run --dart-define=USE_FIXTURES=true
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Role Based Authentication (Fixtures)
+When running with fixtures, the role is determined by the email address:
+- `analyst@thinkfive.com` -> Analyst View
+- `supervisor@thinkfive.com` -> Supervisor View
+- `admin@thinkfive.com` -> Admin View
+- Any other email (e.g. `priya@thinkfive.com`) -> Customer View
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Features Implemented
+- Authentication (Login, Logout, Session persistence via cookies)
+- Customer Dashboard (Balances, Transactions, Cases, Alerts)
+- AI Chat (SSE integration using custom `SseClient` and `SseParser`)
+- Analyst Approvals Queue
+- Supervisor Metrics Dashboard

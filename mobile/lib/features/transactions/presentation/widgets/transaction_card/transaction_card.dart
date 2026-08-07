@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/transaction.dart';
-import '../../../../app/theme/app_colors.dart';
+import 'package:mobile/features/transactions/domain/entities/transaction.dart';
+import 'package:mobile/app/theme/app_colors.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 

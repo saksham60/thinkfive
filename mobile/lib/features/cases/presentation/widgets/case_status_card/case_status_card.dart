@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/case_entity.dart';
-import '../../../../app/theme/app_colors.dart';
-import '../../../../core/widgets/status_badge/status_badge.dart';
+import 'package:mobile/features/cases/domain/entities/case_entity.dart';
+import 'package:mobile/app/theme/app_colors.dart';
+import 'package:mobile/core/widgets/status_badge/status_badge.dart';
 
 class CaseStatusCard extends StatelessWidget {
   final CaseEntity caseEntity;

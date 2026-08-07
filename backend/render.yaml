@@ -13,6 +13,10 @@ services:
         value: 8000
       - key: WORKERS
         value: 1
+      # Required direct PostgreSQL DSN. Render prompts for this secret when the
+      # Blueprint is created; it cannot be derived from Supabase API keys.
+      - key: DATABASE_URL
+        sync: false
       - fromGroup: thinkfive-env
 
     healthCheckPath: /health

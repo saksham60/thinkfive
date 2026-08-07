@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/fraud_alert.dart';
-import '../../../../app/theme/app_colors.dart';
-import '../../../../core/widgets/status_badge/status_badge.dart';
+import 'package:mobile/features/alerts/domain/entities/fraud_alert.dart';
+import 'package:mobile/app/theme/app_colors.dart';
+import 'package:mobile/core/widgets/status_badge/status_badge.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class FraudAlertCard extends StatelessWidget {

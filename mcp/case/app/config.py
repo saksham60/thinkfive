@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: SecretStr | None = Field(default=None, alias="SUPABASE_SERVICE_ROLE_KEY")
     supabase_secret_key: SecretStr | None = Field(default=None, alias="SUPABASE_SECRET_KEY")
     supabase_db_url: SecretStr | None = Field(default=None, alias="SUPABASE_DB_URL")
+    supabase_access_token: SecretStr | None = Field(default=None, alias="SUPABASE_ACCESS_TOKEN")
     mcp_auth_token: SecretStr | None = Field(default=None, alias="MCP_AUTH_TOKEN")
     mcp_provider_mode: Literal["local", "remote"] = Field(default="local", alias="MCP_PROVIDER_MODE")
     banking_mcp_url: str | None = Field(default=None, alias="BANKING_MCP_URL")

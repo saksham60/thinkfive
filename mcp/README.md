@@ -20,7 +20,7 @@ Before creating the Render service, open the Supabase SQL Editor and run these f
 1. `fraudMCP/app/database/migrations/001_fraud_mcp.sql`
 2. `case/app/database/migrations/001_case_mcp.sql`
 
-Both migrations are non-destructive and may be run again. Alternatively, set `SUPABASE_DB_URL` locally and run `python -m scripts.migrate_all` from this directory. Do not put the database URL in Render when `MCP_AUTO_MIGRATE=false`.
+Both migrations are non-destructive and may be run again. Alternatively, set either `SUPABASE_DB_URL` or a local-only `SUPABASE_ACCESS_TOKEN`, then run `python -m scripts.migrate_all` from this directory. Do not put either administrative credential in Render when `MCP_AUTO_MIGRATE=false`.
 
 ## Render Web Service
 

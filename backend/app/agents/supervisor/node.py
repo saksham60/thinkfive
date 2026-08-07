@@ -24,14 +24,41 @@ def _summarize_evidence(state: GraphState) -> str:
     for key in ("banking_evidence", "fraud_evidence", "policy_evidence", "case_evidence"):
         evidence: dict[str, Any] | None = state.get(key)  # type: ignore[assignment]
         if evidence:
-            parts.append(f"- {key}: {evidence.get('findings', 'present')}")
+            detail = f"- {key}: {evidence.get('findings', 'present')}"
+            if key == "banking_evidence":
+                detail += (
+                    f"; attempt_status={evidence.get('attempt_status', 'unknown')}"
+                    f"; transaction_resolution_status="
+                    f"{evidence.get('transaction_resolution_status', 'unknown')}"
+                    f"; requires_clarification={evidence.get('requires_clarification', False)}"
+                )
+            parts.append(detail)
     if not parts:
         memory = state.get("memory_context") or {}
-        return f"(no live evidence collected yet)\nCustomer memory (non-authoritative): {memory}"
+        parts.append("- no live evidence collected yet")
+        if memory:
+            parts.append(f"- customer_memory (non-authoritative): {memory}")
     memory = state.get("memory_context") or {}
-    if memory:
+    if memory and "- no live evidence collected yet" not in parts:
         parts.append(f"- customer_memory (non-authoritative): {memory}")
+    if state.get("active_transaction_id"):
+        parts.append(f"- verified_active_transaction_id: {state['active_transaction_id']}")
+    elif state.get("requested_transaction_id"):
+        parts.append("- untrusted_requested_transaction_id: present but not validated")
+    if state.get("errors"):
+        parts.append(f"- errors: {state['errors']}")
+    if state.get("warnings"):
+        parts.append(f"- warnings: {state['warnings']}")
     return "\n".join(parts)
+
+
+def _banking_retry_blocked(state: GraphState) -> bool:
+    evidence = state.get("banking_evidence") or {}
+    if evidence.get("attempt_status") == "failed":
+        return True
+    return bool(evidence.get("transaction_lookup_attempted")) and evidence.get(
+        "transaction_resolution_status"
+    ) in {"unresolved", "ambiguous", "failed"}
 
 
 async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
@@ -78,16 +105,35 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
             config=llm_trace_config("supervisor", "routing", agent_config.get("version")),
         )
 
+        next_agent = decision.next_agent
+        pending_human_action = (
+            {"type": "clarification", "question": decision.clarification_question}
+            if decision.needs_clarification
+            else state.get("pending_human_action")
+        )
+        routing_reason = decision.reason
+        warnings = state.get("warnings", [])
+
+        if next_agent == "banking" and _banking_retry_blocked(state):
+            banking_evidence = state.get("banking_evidence") or {}
+            question = banking_evidence.get("clarification_question") or (
+                "Please provide more transaction details, such as the merchant, amount, or date."
+            )
+            next_agent = "synthesis"
+            pending_human_action = {"type": "clarification", "question": question}
+            routing_reason = (
+                "Banking already attempted this lookup without resolving a verified transaction; "
+                "the same route will not be repeated without new customer evidence."
+            )
+            warnings = [*warnings, "Repeated unresolved Banking route prevented"]
+
         return {
-            "next_agent": decision.next_agent,
+            "next_agent": next_agent,
             "current_goal": decision.goal,
-            "routing_reason": decision.reason,
+            "routing_reason": routing_reason,
             "iteration_count": iteration_count,
-            "pending_human_action": (
-                {"type": "clarification", "question": decision.clarification_question}
-                if decision.needs_clarification
-                else state.get("pending_human_action")
-            ),
+            "pending_human_action": pending_human_action,
+            "warnings": warnings,
         }
 
     except Exception as e:

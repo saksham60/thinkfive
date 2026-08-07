@@ -25,6 +25,8 @@ def _build_evidence_bundle(state: GraphState) -> str:
         if value:
             bundle[key] = value
 
+    if state.get("active_transaction_id"):
+        bundle["active_transaction_id"] = state["active_transaction_id"]
     if state.get("active_alert_id"):
         bundle["active_alert_id"] = state["active_alert_id"]
     if state.get("active_case_id"):

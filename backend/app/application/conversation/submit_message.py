@@ -48,6 +48,7 @@ class SubmitMessageUseCase:
         customer_id: str,
         message: str,
         conversation_id: UUID | None = None,
+        transaction_id: str | None = None,
     ) -> dict[str, Any]:
         # Get or create conversation
         if conversation_id is not None:
@@ -113,6 +114,7 @@ class SubmitMessageUseCase:
                 thread_id=thread_id,
                 customer_id=customer_id,
                 message=message,
+                requested_transaction_id=transaction_id,
                 runtime_context=runtime_context,
                 conversation_messages=recent_messages,
                 conversation_summary=summary,

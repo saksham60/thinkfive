@@ -66,5 +66,6 @@ async def submit_chat(
         customer_id=user.customer_id,
         message=payload.message,
         conversation_id=conversation_id,
+        transaction_id=payload.transaction_id,
     )
     return ChatResponse(**result)

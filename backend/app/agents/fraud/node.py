@@ -22,23 +22,36 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
 
     current_goal = state.get("current_goal", "")
     active_transaction_id = state.get("active_transaction_id")
-    banking_evidence = state.get("banking_evidence", {})
+
+    if not active_transaction_id:
+        warning = "A specific transaction has not yet been resolved through Banking MCP."
+        return {
+            "fraud_evidence": {
+                "goal_completed": False,
+                "evidence": [],
+                "findings": warning,
+                "assessment_id": None,
+                "alert_id": None,
+                "risk_score": None,
+                "severity": None,
+                "requires_case": False,
+                "transaction_resolution_status": "unresolved",
+            },
+            "warnings": state.get("warnings", []) + [warning],
+        }
 
     fraud_agent = config.get("configurable", {}).get("fraud_agent")
     if not fraud_agent:
         raise ValueError("Fraud Agent not configured")
 
-    transaction_context = None
-    if active_transaction_id:
-        transaction_context = f"Transaction ID: {active_transaction_id}"
-    elif banking_evidence:
-        transaction_context = f"Banking evidence available: {banking_evidence.get('findings', '')}"
+    transaction_context = f"Verified Banking MCP transaction ID: {active_transaction_id}"
 
     agent_config = fraud_agent.create_agent(transaction_context)
     llm = agent_config["llm"]
     output_llm = agent_config["output_llm"]
     prompt = agent_config["prompt"]
     toolset = agent_config["toolset"]
+    toolset.bind_verified_transaction(active_transaction_id)
 
     messages = [
         SystemMessage(content=prompt),
@@ -65,6 +78,7 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
                 "risk_score": find_grounded_value(grounded.tool_results, "risk_score"),
                 "severity": find_grounded_value(grounded.tool_results, "severity"),
                 "requires_case": fraud_output.requires_case,
+                "transaction_id": active_transaction_id,
             }
 
             update: dict[str, Any] = {

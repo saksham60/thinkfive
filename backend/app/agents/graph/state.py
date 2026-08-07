@@ -36,6 +36,7 @@ class GraphState(TypedDict, total=False):
     case_evidence: dict[str, Any]
 
     # Active entity references
+    requested_transaction_id: str | None
     active_transaction_id: str | None
     active_alert_id: str | None
     active_case_id: str | None

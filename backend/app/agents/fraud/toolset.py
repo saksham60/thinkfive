@@ -16,6 +16,13 @@ class FraudToolset:
     def __init__(self, fraud_adapter: FraudMCPAdapter, customer_id: str = CANONICAL_CUSTOMER_ID) -> None:
         self.fraud_adapter = fraud_adapter
         self.customer_id = customer_id
+        self.verified_transaction_id: str | None = None
+        self.verified_assessment_id: str | None = None
+
+    def bind_verified_transaction(self, transaction_id: str) -> None:
+        """Bind the Banking-MCP-verified transaction for this graph run."""
+        self.verified_transaction_id = transaction_id
+        self.verified_assessment_id = None
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         return [
@@ -139,12 +146,20 @@ class FraudToolset:
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         adapter = self.fraud_adapter
         if tool_name == "assess_transaction_risk":
-            return await adapter.assess_transaction_risk(
+            transaction_id = arguments.get("transaction_id")
+            if self.verified_transaction_id is None:
+                raise ValueError("A Banking-MCP-verified transaction is required for risk assessment")
+            if transaction_id != self.verified_transaction_id:
+                raise ValueError("Risk assessment transaction does not match verified Banking evidence")
+            result = await adapter.assess_transaction_risk(
                 customer_id=self.customer_id,
-                transaction_id=arguments["transaction_id"],
+                transaction_id=self.verified_transaction_id,
                 device_id=arguments.get("device_id"),
                 channel=arguments.get("channel"),
             )
+            assessment_id = self._find_value(result, "assessment_id")
+            self.verified_assessment_id = str(assessment_id) if assessment_id else None
+            return result
         elif tool_name == "get_customer_risk_context":
             return await adapter.get_customer_risk_context(
                 self.customer_id, arguments.get("history_limit", 100)
@@ -158,8 +173,13 @@ class FraudToolset:
         elif tool_name == "check_blacklist":
             return await adapter.check_blacklist(arguments["entity_type"], arguments["value"])
         elif tool_name == "create_fraud_alert":
+            assessment_id = arguments.get("assessment_id")
+            if self.verified_assessment_id is None:
+                raise ValueError("A grounded Fraud MCP assessment is required before alert creation")
+            if assessment_id != self.verified_assessment_id:
+                raise ValueError("Alert assessment does not match the grounded Fraud MCP assessment")
             return await adapter.create_fraud_alert(
-                assessment_id=arguments["assessment_id"],
+                assessment_id=self.verified_assessment_id,
                 customer_id=self.customer_id,
             )
         elif tool_name == "get_fraud_alerts":
@@ -170,3 +190,19 @@ class FraudToolset:
             )
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
+
+    @classmethod
+    def _find_value(cls, value: Any, key: str) -> Any:
+        if isinstance(value, dict):
+            if value.get(key) is not None:
+                return value[key]
+            for child in value.values():
+                found = cls._find_value(child, key)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for child in value:
+                found = cls._find_value(child, key)
+                if found is not None:
+                    return found
+        return None

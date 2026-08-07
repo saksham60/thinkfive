@@ -49,6 +49,7 @@ class GraphRunner:
         customer_id: str,
         message: str,
         runtime_context: dict[str, Any],
+        requested_transaction_id: str | None = None,
         conversation_messages: list[Any] | None = None,
         conversation_summary: str | None = None,
         memory_context: dict[str, Any] | None = None,
@@ -95,6 +96,10 @@ class GraphRunner:
             "run_id": str(run_id),
             "thread_id": thread_id,
             "customer_id": customer_id,
+            # A browser-supplied ID is only an untrusted lookup hint. Banking
+            # must validate it before active_transaction_id can be populated.
+            "requested_transaction_id": requested_transaction_id,
+            "active_transaction_id": None,
             "memory_context": memory_context or {},
             "iteration_count": 0,
             "warnings": [],

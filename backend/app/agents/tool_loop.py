@@ -160,7 +160,7 @@ async def _execute_grounded_tool_loop(
                         run_id=UUID(run_id), customer_id=customer_id,
                         agent_name=agent_name, tool_name=name, status="completed",
                     )
-            evidence.append({"tool": name, "data": result})
+            evidence.append({"tool": name, "arguments": arguments, "data": result})
             transcript.append(
                 ToolMessage(
                     content=json.dumps(result, default=str),

@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: thinkfive-mcp
+    runtime: docker
+    dockerfilePath: ./mcp/Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    envVars:
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV
+        value: sandbox
+      - key: PLAID_AUTO_BOOTSTRAP
+        value: "true"
+      - key: PLAID_DEFAULT_CUSTOMER_ID
+        value: demo_customer_001
+      - key: PLAID_INSTITUTION_ID
+        value: ins_109508
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: MCP_AUTH_TOKEN
+        generateValue: true
+      - key: MCP_PROVIDER_MODE
+        value: local
+      - key: FRAUD_REPOSITORY_BACKEND
+        value: supabase
+      - key: CASE_REPOSITORY_BACKEND
+        value: supabase
+      - key: CASE_AUTO_SEED
+        value: "true"
+      - key: MCP_AUTO_MIGRATE
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO

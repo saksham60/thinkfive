@@ -1,0 +1,1 @@
+"""Fraud MCP database resources."""

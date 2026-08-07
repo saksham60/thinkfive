@@ -1,0 +1,1 @@
+"""Plaid Banking MCP package."""

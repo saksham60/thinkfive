@@ -1,0 +1,38 @@
+{
+  "source": "synthetic_demo_data",
+  "list_name": "fraud_demo_watchlist",
+  "entries": [
+    {
+      "entity_type": "merchant",
+      "value": "suspicious gadgets outlet",
+      "reason": "merchant-linked chargeback cluster",
+      "metadata": {
+        "region": "US"
+      }
+    },
+    {
+      "entity_type": "device",
+      "value": "device_stolen_001",
+      "reason": "reported stolen device fingerprint",
+      "metadata": {
+        "confidence": "high"
+      }
+    },
+    {
+      "entity_type": "ip",
+      "value": "203.0.113.50",
+      "reason": "known credential-stuffing source",
+      "metadata": {
+        "asn": "AS64496"
+      }
+    },
+    {
+      "entity_type": "account",
+      "value": "acc_blacklisted_123",
+      "reason": "compromised account identifier",
+      "metadata": {
+        "source_system": "demo_internal_feed"
+      }
+    }
+  ]
+}

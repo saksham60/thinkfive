@@ -1,0 +1,36 @@
+{
+  "source": "synthetic_demo_data",
+  "customers": [
+    {
+      "customer_id": "demo_customer_001",
+      "devices": [
+        {
+          "device_id": "device_primary",
+          "trusted": true,
+          "first_seen": "2025-01-10T10:00:00Z",
+          "last_seen": "2026-08-05T16:45:00Z",
+          "country": "US"
+        },
+        {
+          "device_id": "device_tablet",
+          "trusted": false,
+          "first_seen": "2026-07-30T11:00:00Z",
+          "last_seen": "2026-08-01T11:30:00Z",
+          "country": "US"
+        }
+      ]
+    },
+    {
+      "customer_id": "demo_customer_002",
+      "devices": [
+        {
+          "device_id": "customer2_phone",
+          "trusted": true,
+          "first_seen": "2026-05-01T08:10:00Z",
+          "last_seen": "2026-08-06T13:30:00Z",
+          "country": "GB"
+        }
+      ]
+    }
+  ]
+}

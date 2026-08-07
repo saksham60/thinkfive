@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "thinkfive-mcp-platform"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.141,<1",
+  "fastmcp>=3.4,<4",
+  "httpx>=0.28,<1",
+  "plaid-python>=37,<40",
+  "postgrest>=2.31,<3",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "pyjwt[crypto]>=2.10,<3",
+  "scikit-learn>=1.5,<2",
+  "truststore>=0.10,<1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.20,<2",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.16,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["common", "plaidbanking", "fraudMCP", "case"]
+
+[tool.pytest.ini_options]
+addopts = "-q --import-mode=importlib"
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["plaidbanking/tests", "fraudMCP/tests", "case/tests", "tests"]
+markers = [
+  "sandbox: requires real Plaid Sandbox credentials",
+  "supabase: requires real Supabase schema and credentials",
+  "cross_mcp: requires configured live dependencies",
+]
+
+[tool.ruff]
+line-length = 160
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["E501", "E701", "E702", "UP037", "UP038", "UP046", "UP047"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "plaidbanking.tests.*", "fraudMCP.tests.*", "case.tests.*"]
+disable_error_code = ["no-untyped-def", "no-any-return"]
+
+[[tool.mypy.overrides]]
+module = ["fraudMCP.app.mcp.tools.*"]
+disable_error_code = ["untyped-decorator"]

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, AlertOctagon, CheckCircle2, ShieldCheck, Cpu, Volume2, VolumeX, Eye, ArrowUpRight, Lock, Activity, Building, User, Clock, MessageSquare, Plus, Check, Filter } from 'lucide-react';
-import { FraudAlert, SecurityIncident, IncidentStatus } from '../types';
+import { FraudAlert, SecurityIncident, IncidentStatus, FraudAssessment } from '../types';
 import { NetworkGraph } from './NetworkGraph';
 import { FraudInvestigationModal } from './FraudInvestigationModal';
+import { FraudAssessmentCard } from './FraudAssessmentCard';
+import { RealTimeFraudAlertBanner } from './RealTimeFraudAlertBanner';
 
 interface AnalystViewProps {
   alerts: FraudAlert[];
@@ -201,6 +203,25 @@ export const AnalystView: React.FC<AnalystViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Prominent Real-Time Fraud Alert Notification Banner for Admin Analyst Hub */}
+      <RealTimeFraudAlertBanner
+        alerts={alerts}
+        incidents={incidents}
+        onSelectAlertOrIncident={({ alert, incident }) => {
+          if (alert) {
+            setSelectedAlert(alert);
+            setActiveTab('alerts');
+          }
+          if (incident) {
+            setSelectedIncident(incident);
+            setActiveTab('incidents');
+          }
+        }}
+        onRefreshAlerts={onRefreshAlerts}
+        onRefreshIncidents={onRefreshIncidents}
+        onOpenModal={() => setModalOpen(true)}
+      />
 
       {/* Primary Queue Tabs */}
       <div className="flex items-center space-x-2 border-b border-white/10 pb-2">
@@ -452,6 +473,31 @@ export const AnalystView: React.FC<AnalystViewProps> = ({
                   </div>
                 </div>
 
+                {/* Full Fraud Investigation Report for Admin Analyst Hub */}
+                <FraudAssessmentCard
+                  assessment={{
+                    category: selectedIncident.fraudCategory || 'Unrecognized Transaction',
+                    severity: selectedIncident.severity || 'High',
+                    confidenceScore: 94,
+                    fraudProbability: '94%',
+                    keyIndicators: ['Unrecognized location / device', 'Velocity multiplier anomaly'],
+                    financialRisk: '₹2,499.99 INR Exposure',
+                    recommendedActions: ['Freeze Debit Card ****-4832', 'Issue Replacement Card', 'Notify Customer via App'],
+                    summaryText: selectedIncident.aiAssessmentSummary || 'Automated multi-agent fraud investigation flagged high risk score.',
+                    evidence: ['Rule Violation: IP Mismatch (Lagos vs Mumbai)', 'XGBoost ML Score: 0.94', 'Isolation Forest Anomaly: 0.89'],
+                    relatedEntities: {
+                      location: 'Lagos, Nigeria (IP Geo-mismatch)',
+                      device: 'DEV-RING-X992',
+                      analystName: selectedIncident.assignedAnalyst || 'Alex Vance'
+                    },
+                    riskScore: 92,
+                    priority: (selectedIncident.severity?.toLowerCase() as any) || 'high',
+                    caseId: selectedIncident.incidentId,
+                    assignedAnalyst: selectedIncident.assignedAnalyst || 'Alex Vance',
+                    isFraud: true
+                  }}
+                />
+
                 {/* AI Fraud Assessment Summary Box */}
                 <div className="bg-[#080808] rounded p-4 border border-white/10 space-y-2">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5 font-mono">
@@ -609,6 +655,31 @@ export const AnalystView: React.FC<AnalystViewProps> = ({
                     ))}
                   </ul>
                 </div>
+
+                {/* Full Fraud Investigation Report for Admin Analyst Hub */}
+                <FraudAssessmentCard
+                  assessment={{
+                    category: selectedAlert.reasons[0] || 'High Risk Transaction',
+                    severity: selectedAlert.priority || 'High',
+                    confidenceScore: selectedAlert.riskScore,
+                    fraudProbability: `${selectedAlert.riskScore}%`,
+                    keyIndicators: selectedAlert.reasons,
+                    financialRisk: `₹${selectedAlert.amount.toFixed(2)} INR`,
+                    recommendedActions: ['Freeze Debit Card', 'Block Online Banking', 'Request Customer Verification'],
+                    summaryText: `Real-time surveillance alert for ₹${selectedAlert.amount.toFixed(2)} at ${selectedAlert.merchantName}. ML Model XGBoost risk score is ${selectedAlert.riskScore}/100.`,
+                    evidence: selectedAlert.evidence?.ruleViolations || selectedAlert.reasons,
+                    relatedEntities: {
+                      location: 'Lagos, Nigeria (IP Geo-mismatch)',
+                      device: 'DEV-RING-X992',
+                      analystName: 'Alex Vance'
+                    },
+                    riskScore: selectedAlert.riskScore,
+                    priority: selectedAlert.priority,
+                    caseId: selectedAlert.caseId || selectedAlert.alertId,
+                    assignedAnalyst: 'Alex Vance',
+                    isFraud: true
+                  }}
+                />
 
                 {/* Graph Entity Network Visualizer */}
                 <NetworkGraph

@@ -661,6 +661,10 @@ Section 3.2: Immediate Action Steps
     return Array.from(this.cases.values());
   }
 
+  public getCase(caseId: string): CaseRecord | undefined {
+    return this.cases.get(caseId);
+  }
+
   public getCustomerCases(customerId: string): CaseRecord[] {
     return Array.from(this.cases.values()).filter(c => c.customerId === customerId);
   }

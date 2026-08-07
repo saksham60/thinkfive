@@ -35,8 +35,8 @@ import {
   SecurityIncident,
   FraudAlert
 } from '../types';
-import { FraudAssessmentSummaryPanel } from './FraudAssessmentSummaryPanel';
-import { FraudAssessmentCard } from './FraudAssessmentCard';
+import { CustomerDisputesTracker } from './CustomerDisputesTracker';
+import { CustomerFraudNoticeCard } from './CustomerFraudNoticeCard';
 import { ActionWorkflowPage } from './ActionWorkflowPage';
 import { FraudAlertCenter } from './FraudAlertCenter';
 
@@ -123,7 +123,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
       onSelectCustomerSubTab(tab);
     }
   };
-  const [showToastAlert, setShowToastAlert] = useState<FraudAlert | null>(null);
+  const [customerNoticeDismissed, setCustomerNoticeDismissed] = useState(false);
   const [initialAlertSearch, setInitialAlertSearch] = useState<string>('');
   const [selectedWorkflowAction, setSelectedWorkflowAction] = useState<{
     actionTitle: string;
@@ -170,14 +170,6 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
       }
     ]);
   }, []);
-
-  // Monitor active open alerts for Toast Notifications
-  useEffect(() => {
-    const openAlert = alerts.find(a => a.status === 'open');
-    if (openAlert) {
-      setShowToastAlert(openAlert);
-    }
-  }, [alerts]);
 
   useEffect(() => {
     if (messagesContainerRef.current) {
@@ -345,45 +337,38 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative">
-      {/* Real-time Toast Notification Banner */}
-      {showToastAlert && (
-        <div className="fixed top-20 right-6 z-50 max-w-md w-full bg-[#111111] border-2 border-red-500/80 rounded-xl shadow-2xl p-4 text-white animate-bounce-short">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-red-600/20 border border-red-500/40 text-red-500 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 animate-pulse text-red-500" />
-              </div>
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded">
-                  CRITICAL FRAUD ALERT
-                </span>
-                <h4 className="text-xs font-bold text-white mt-1">
-                  Suspicious Charge: ₹{showToastAlert.amount.toLocaleString('en-IN')} at {showToastAlert.merchantName}
-                </h4>
-                <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                  Flagged by Real-Time Surveillance Engine (Risk Score: {showToastAlert.riskScore}/100)
-                </p>
-              </div>
+      {/* Simple, Customer-Friendly Security Notice Banner (No Risk Scores or Internal Details) */}
+      {!customerNoticeDismissed && activeAlertsCount > 0 && (
+        <div className="bg-[#121212] border border-orange-500/30 rounded-xl p-4 text-white shadow-lg flex flex-wrap items-center justify-between gap-3 font-sans">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30 flex-shrink-0">
+              <Bell className="w-5 h-5 text-orange-400 animate-pulse" />
             </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-white">Account Security Notice</span>
+                <span className="text-[10px] font-mono font-bold bg-orange-500/15 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">
+                  CASE ACTIVE
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5 font-sans">
+                A suspicious transaction has been detected on your account. Case ID: FRA-2026-10452 has been created and our fraud team is currently investigating your case.
+              </p>
+            </div>
+          </div>
 
+          <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowToastAlert(null)}
+              onClick={() => handleTabChange('activity')}
+              className="text-xs bg-orange-600 hover:bg-orange-500 text-white font-medium px-3 py-1.5 rounded-lg transition-all"
+            >
+              View Case Status
+            </button>
+            <button
+              onClick={() => setCustomerNoticeDismissed(true)}
               className="text-slate-500 hover:text-white p-1"
             >
               <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between font-mono text-xs">
-            <span className="text-[10px] text-slate-400">Card ending in ****-4832</span>
-            <button
-              onClick={() => {
-                setCustomerTab('alerts');
-                setShowToastAlert(null);
-              }}
-              className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow transition-all"
-            >
-              Review Alert Center <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -477,12 +462,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 >
                   {renderFormattedText(msg.text)}
 
-                  {/* Render Fraud Assessment Inline Card if attached */}
+                  {/* Render Customer Fraud Notice Card if attached */}
                   {msg.fraudAssessment && (
                     <div className="mt-4 pt-3 border-t border-white/10">
-                      <FraudAssessmentCard
+                      <CustomerFraudNoticeCard
                         assessment={msg.fraudAssessment}
-                        onExecuteAction={(actionText) => handleOpenActionWorkflow(actionText, msg.fraudAssessment)}
+                        onActionClick={(actionText) => handleOpenActionWorkflow(actionText, msg.fraudAssessment)}
                       />
                     </div>
                   )}
@@ -728,11 +713,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         </div>
       </div>
 
-      {/* AI Fraud Assessment Summary Dossier Section Below Customer View */}
+      {/* Customer Security & Fraud Cases Tracker Section */}
       <div className="pt-2">
-        <FraudAssessmentSummaryPanel
+        <CustomerDisputesTracker
+          cases={dashboardData.cases}
+          incidents={incidents}
+          alerts={alerts}
           assessmentItems={assessmentItems}
-          onExecuteAction={(actionText, assessment) => handleOpenActionWorkflow(actionText, assessment)}
+          onExecuteAction={(actionText) => handleOpenActionWorkflow(actionText)}
         />
       </div>
     </div>

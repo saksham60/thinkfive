@@ -23,20 +23,57 @@ async function startServer() {
   // API ENDPOINTS
   // ==========================================
 
-  // 1. Customer Chat
-  app.post('/api/chat', async (req, res) => {
+  // Health & Readiness Probes
+  app.get(['/health', '/ready', '/api/health', '/api/v1/health', '/api/v1/ready'], (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'SentinelBank AI Backend Orchestrator',
+      timestamp: new Date().toISOString(),
+      mcps: ['BankingMCP', 'FraudMCP', 'CaseMCP'],
+      orchestrator: 'LangGraph'
+    });
+  });
+
+  // 1. Customer Chat (v1 and standard)
+  app.post(['/api/chat', '/api/v1/chat'], async (req, res) => {
     try {
-      const { message, customerId, userRole, transactionId } = req.body;
+      const { message, customer_id, customerId, userRole, transactionId, thread_id } = req.body;
+      const effectiveCustomerId = customer_id || customerId || 'CUST-1001';
       const result = await LangGraphOrchestrator.processCustomerMessage(
         message || 'Hello',
-        customerId || 'CUST-1001',
+        effectiveCustomerId,
         userRole || 'customer',
         transactionId
       );
-      res.json(result);
+      const resMsg = result.responseMessage;
+      res.json({
+        success: true,
+        thread_id: thread_id || `thread-${Date.now()}`,
+        response: resMsg?.text || '',
+        actions: resMsg?.suggestedActions || [],
+        citations: resMsg?.sources || [],
+        case_reference: result.newAlert?.caseId || null,
+        approval_reference: result.newAlert?.alertId || null,
+        warnings: [],
+        ...result
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Internal Agent Error' });
     }
+  });
+
+  // 1b. Conversations endpoint
+  app.get(['/api/conversations/:threadId', '/api/v1/conversations/:threadId'], (req, res) => {
+    const threadId = req.params.threadId;
+    const cases = db.getCases().filter(c => c.caseId === threadId || c.alertId === threadId);
+    const auditEvents = db.getAuditEvents().filter(e => e.details.includes(threadId));
+    res.json({
+      success: true,
+      thread_id: threadId,
+      cases,
+      auditEvents,
+      status: 'active'
+    });
   });
 
   // 2. Customer Profile & Accounts
@@ -133,8 +170,30 @@ async function startServer() {
     }
   });
 
-  // 3. Analyst Fraud Alerts
-  app.get('/api/alerts', async (req, res) => {
+  // 2c. Cases REST API Facade
+  app.get(['/api/cases', '/api/v1/cases'], (req, res) => {
+    res.json(db.getCases());
+  });
+
+  app.get(['/api/cases/:id', '/api/v1/cases/:id'], (req, res) => {
+    const caseRecord = db.getCase(req.params.id);
+    if (!caseRecord) return res.status(404).json({ error: 'Case not found' });
+    res.json(caseRecord);
+  });
+
+  app.get(['/api/cases/:id/history', '/api/v1/cases/:id/history'], (req, res) => {
+    const caseRecord = db.getCase(req.params.id);
+    if (!caseRecord) return res.status(404).json({ error: 'Case not found' });
+    const auditEvents = db.getAuditEvents().filter(e => e.details.includes(req.params.id) || e.details.includes(caseRecord.alertId));
+    res.json({
+      caseId: caseRecord.caseId,
+      notes: caseRecord.notes || [],
+      auditTrail: auditEvents
+    });
+  });
+
+  // 3. Analyst Fraud Alerts & Pending Approvals
+  app.get(['/api/alerts', '/api/fraud/alerts', '/api/v1/fraud/alerts'], async (req, res) => {
     try {
       const alerts = await MCPGateway.executeTool('FraudMCP', 'get_active_alerts', {}, { userRole: 'analyst' });
       res.json(alerts);
@@ -143,7 +202,13 @@ async function startServer() {
     }
   });
 
-  app.get('/api/alerts/:id', async (req, res) => {
+  app.get(['/api/approvals/pending', '/api/v1/approvals/pending'], (req, res) => {
+    const alerts = db.getActiveAlerts();
+    const pending = alerts.filter(a => a.status === 'open' || a.humanApprovalRequired);
+    res.json(pending);
+  });
+
+  app.get(['/api/alerts/:id', '/api/v1/fraud/alerts/:id'], async (req, res) => {
     try {
       const alert = db.getAlert(req.params.id);
       if (!alert) return res.status(404).json({ error: 'Alert not found' });
@@ -155,7 +220,7 @@ async function startServer() {
   });
 
   // 4. Human-in-the-Loop Analyst Approval (Card Freeze Execution)
-  app.post('/api/alerts/:id/approve-freeze', async (req, res) => {
+  app.post(['/api/alerts/:id/approve-freeze', '/api/approvals/:id/approve', '/api/v1/approvals/:id/approve'], async (req, res) => {
     try {
       const alertId = req.params.id;
       const { analystName, reason } = req.body;
@@ -223,7 +288,7 @@ async function startServer() {
   });
 
   // 5. Reject Alert (False Positive Safe)
-  app.post('/api/alerts/:id/reject-safe', async (req, res) => {
+  app.post(['/api/alerts/:id/reject-safe', '/api/approvals/:id/reject', '/api/v1/approvals/:id/reject'], async (req, res) => {
     try {
       const alertId = req.params.id;
       const { analystName, notes } = req.body;

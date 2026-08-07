@@ -167,14 +167,44 @@ export const FraudAssessmentCard: React.FC<FraudAssessmentCardProps> = ({
         </div>
       </div>
 
-      {/* Investigation Summary Narrative */}
-      <div className="bg-[#0a0a0a] p-3.5 rounded-lg border border-white/10 space-y-1">
+      {/* Investigation Summary Narrative & AI Reasoning */}
+      <div className="bg-[#0a0a0a] p-3.5 rounded-lg border border-white/10 space-y-2">
         <span className="text-[10px] text-orange-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5 text-orange-400" /> Investigation Summary
+          <Sparkles className="w-3.5 h-3.5 text-orange-400" /> Investigation Summary & AI Reasoning
         </span>
-        <p className="text-xs text-slate-200 leading-relaxed font-sans pt-0.5">
+        <p className="text-xs text-slate-200 leading-relaxed font-sans">
           {summaryText || "The transaction significantly deviates from the customer's normal behaviour and matches known fraud patterns."}
         </p>
+        <div className="bg-[#111111] p-2.5 rounded border border-white/5 text-[11px] font-mono text-slate-300 space-y-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Sentinel AI Decision Path & Reasoning:</span>
+          <p className="text-slate-300 leading-snug">
+            • XGBoost ML Risk Engine: High probability transaction anomaly (Score: {displayScore}/100)<br />
+            • Graph Neural Net: Cluster co-occurrence with known compromised card batch in EMEA region<br />
+            • Behavioral Velocity: 55x historical average daily spend limit exceeded<br />
+            • Regulatory SOP: Triggered Regulation E Zero Liability protection protocol
+          </p>
+        </div>
+      </div>
+
+      {/* Case Timeline */}
+      <div className="bg-[#080808] p-3 rounded-lg border border-white/5 space-y-2 font-mono text-xs">
+        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+          <Activity className="w-3.5 h-3.5 text-orange-400" /> Investigation Case Timeline
+        </span>
+        <div className="space-y-1.5 text-[11px] text-slate-300 pl-2 border-l-2 border-orange-500/40">
+          <div className="flex items-center justify-between">
+            <span>1. Customer Fraud Report / Real-time Flag</span>
+            <span className="text-[10px] text-slate-500">Just now</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>2. LangGraph AI Multi-Agent Risk Synthesis</span>
+            <span className="text-[10px] text-emerald-400 font-bold">COMPLETED</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>3. Dispatched to Analyst Hub (Assignee: {assignedAnalyst || 'Alex Vance'})</span>
+            <span className="text-[10px] text-orange-400 font-bold">IN PROGRESS</span>
+          </div>
+        </div>
       </div>
 
       {/* Evidence & Suspicious Indicators Grid */}

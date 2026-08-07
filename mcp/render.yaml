@@ -2,7 +2,8 @@ services:
   - type: web
     name: thinkfive-mcp
     runtime: docker
-    dockerfilePath: ./mcp/Dockerfile
+    rootDir: mcp
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /ready
     envVars:

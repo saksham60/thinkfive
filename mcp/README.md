@@ -57,7 +57,7 @@ python -m uvicorn app:create_app --factory --host 0.0.0.0 --port 8000 --workers 
 From the repository root:
 
 ```bash
-docker build -f mcp/Dockerfile -t thinkfive-mcp .
+docker build -f mcp/Dockerfile -t thinkfive-mcp mcp
 docker run --rm --env-file mcp/.env -p 8000:8000 thinkfive-mcp
 ```
 

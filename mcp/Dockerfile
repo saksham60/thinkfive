@@ -3,16 +3,16 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8000
 WORKDIR /opt/thinkfive/mcp
 
-COPY mcp/pyproject.toml mcp/README.md ./
-COPY mcp/app.py mcp/config.py mcp/migrations.py mcp/providers.py ./
-COPY mcp/common ./common
-COPY mcp/plaidbanking/app ./plaidbanking/app
-COPY mcp/plaidbanking/__init__.py ./plaidbanking/__init__.py
-COPY mcp/fraudMCP/app ./fraudMCP/app
-COPY mcp/fraudMCP/data ./fraudMCP/data
-COPY mcp/fraudMCP/__init__.py ./fraudMCP/__init__.py
-COPY mcp/case/app ./case/app
-COPY mcp/case/__init__.py ./case/__init__.py
+COPY pyproject.toml README.md ./
+COPY app.py config.py migrations.py providers.py ./
+COPY common ./common
+COPY plaidbanking/app ./plaidbanking/app
+COPY plaidbanking/__init__.py ./plaidbanking/__init__.py
+COPY fraudMCP/app ./fraudMCP/app
+COPY fraudMCP/data ./fraudMCP/data
+COPY fraudMCP/__init__.py ./fraudMCP/__init__.py
+COPY case/app ./case/app
+COPY case/__init__.py ./case/__init__.py
 
 RUN pip install --no-cache-dir .
 

@@ -6,6 +6,9 @@ import importlib
 from pathlib import Path
 
 import pytest
+from langgraph.checkpoint.memory import InMemorySaver
+
+from app.agents.graph.builder import build_graph
 
 AGENTS_DIR = Path(__file__).parent.parent.parent / "app" / "agents"
 TOOL_USING_AGENTS = ["banking", "fraud", "knowledge", "case"]
@@ -46,3 +49,7 @@ class TestAgentArchitecture:
 
     def test_no_giant_global_agents_file_exists(self) -> None:
         assert not (AGENTS_DIR / "agents.py").exists()
+
+    def test_graph_compiles_with_runtime_type_annotations(self) -> None:
+        """LangGraph resolves route annotations dynamically during compilation."""
+        assert build_graph(InMemorySaver()) is not None

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
-if TYPE_CHECKING:
-    from app.agents.graph.state import GraphState
+from app.agents.graph.state import GraphState
 
 logger = logging.getLogger(__name__)
 

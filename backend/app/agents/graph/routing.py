@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from app.agents.graph.state import GraphState
+from app.agents.graph.state import GraphState
 
 
 def route_from_supervisor(state: GraphState) -> str:

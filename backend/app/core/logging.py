@@ -16,15 +16,17 @@ class CorrelationFilter(logging.Filter):
 
 def configure_logging(log_level: str = "INFO") -> None:
     """Configure application logging with correlation IDs."""
+    handler = logging.StreamHandler(sys.stdout)
+    # Filters attached to the root logger do not run for records propagated
+    # from descendant/third-party loggers. Attach it to the handler so every
+    # record formatted below has the required field.
+    handler.addFilter(CorrelationFilter())
     logging.basicConfig(
         level=log_level.upper(),
         format="%(asctime)s [%(levelname)s] [%(correlation_id)s] %(name)s: %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        handlers=[handler],
+        force=True,
     )
-
-    # Add correlation filter to root logger
-    root_logger = logging.getLogger()
-    root_logger.addFilter(CorrelationFilter())
 
     # Reduce noise from third-party libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)

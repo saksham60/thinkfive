@@ -20,3 +20,4 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: str
+    run_id: str | None = None

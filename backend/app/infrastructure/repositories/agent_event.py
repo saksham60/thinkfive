@@ -78,6 +78,22 @@ class AgentEventRepository:
         )
         return [dict(r) for r in rows]
 
+    async def get_recent(self, conversation_id: UUID, limit: int = 200) -> list[dict[str, Any]]:
+        """Get the newest events in chronological order for a fresh SSE client."""
+        rows = await self.db.fetch(
+            """
+            SELECT * FROM (
+                SELECT * FROM agent_events
+                WHERE conversation_id = $1
+                ORDER BY event_seq DESC LIMIT $2
+            ) recent
+            ORDER BY event_seq ASC
+            """,
+            conversation_id,
+            limit,
+        )
+        return [dict(r) for r in rows]
+
     async def count_by_type(self, since: object = None) -> dict[str, int]:
         rows = await self.db.fetch(
             "SELECT event_type, COUNT(*) as cnt FROM agent_events GROUP BY event_type",

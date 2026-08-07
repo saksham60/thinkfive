@@ -53,3 +53,21 @@ async def test_replay_decodes_persisted_json_payload() -> None:
     }]
     result = await EventReplayService(repo).replay_since(uuid4(), 3)
     assert result[0]["payload"] == {"run_id": "run-1"}
+
+
+async def test_fresh_stream_replays_recent_persisted_events() -> None:
+    repo = AsyncMock()
+    repo.get_recent.return_value = [{
+        "event_seq": 9, "event_type": "chat.completed",
+        "payload": '{"run_id":"run-1","response":"Balance is $10"}', "created_at": None,
+    }]
+
+    result = await EventReplayService(repo).replay_recent(uuid4())
+
+    repo.get_recent.assert_awaited_once()
+    assert result == [{
+        "event_seq": 9,
+        "event_type": "chat.completed",
+        "payload": {"run_id": "run-1", "response": "Balance is $10"},
+        "created_at": None,
+    }]

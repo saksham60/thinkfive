@@ -18,6 +18,15 @@ class EventReplayService:
     async def replay_since(self, conversation_id: UUID, last_event_id: int) -> list[dict[str, Any]]:
         """Get events after the given event_seq for replay after reconnect."""
         events = await self.event_repo.get_since(conversation_id, after_seq=last_event_id)
+        return self._decode(events)
+
+    async def replay_recent(self, conversation_id: UUID) -> list[dict[str, Any]]:
+        """Get recent persisted events when a client has no event cursor yet."""
+        events = await self.event_repo.get_recent(conversation_id)
+        return self._decode(events)
+
+    @staticmethod
+    def _decode(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
             {
                 "event_seq": e["event_seq"],

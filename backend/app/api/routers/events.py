@@ -33,24 +33,36 @@ async def stream_events(
         AuthorizationPolicy.assert_customer_access(user.role, user.customer_id, conversation.customer_id)
 
     async def event_generator():
-        yield f"event: connection.ready\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
+        # Subscribe before reading persistence so an event emitted during replay
+        # is queued instead of falling into the replay/live handoff gap.
+        queue = await container.event_broker.subscribe(conversation_id)
+        last_sent_event_id = last_event_id or 0
+        try:
+            yield f"event: connection.ready\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
 
-        # Replay missed events since Last-Event-ID
-        if last_event_id:
-            replayed = await container.event_replay_service.replay_since(conversation_id, last_event_id)
+            # A fresh EventSource has no cursor. Replay the newest persisted
+            # events so completions emitted before the stream attached are not
+            # lost. Reconnects continue from their Last-Event-ID cursor.
+            if last_event_id is None:
+                replayed = await container.event_replay_service.replay_recent(conversation_id)
+            else:
+                replayed = await container.event_replay_service.replay_since(conversation_id, last_event_id)
             for evt in replayed:
                 data = json.dumps({"type": evt["event_type"], "payload": evt["payload"]}, default=str)
                 yield f"id: {evt['event_seq']}\nevent: {evt['event_type']}\ndata: {data}\n\n"
+                last_sent_event_id = max(last_sent_event_id, int(evt["event_seq"]))
 
-        queue = await container.event_broker.subscribe(conversation_id)
-        try:
             while True:
                 try:
                     event = await asyncio.wait_for(
                         queue.get(), timeout=container.settings.sse_heartbeat_interval
                     )
+                    event_seq = int(event.get("event_seq") or 0)
+                    if event_seq and event_seq <= last_sent_event_id:
+                        continue
                     data = json.dumps({"type": event["event_type"], "payload": event["payload"]}, default=str)
-                    yield f"id: {event.get('event_seq', 0)}\nevent: {event['event_type']}\ndata: {data}\n\n"
+                    yield f"id: {event_seq}\nevent: {event['event_type']}\ndata: {data}\n\n"
+                    last_sent_event_id = max(last_sent_event_id, event_seq)
                 except TimeoutError:
                     yield f"event: {EventType.HEARTBEAT.value}\ndata: {{}}\n\n"
                 if await request.is_disconnected():

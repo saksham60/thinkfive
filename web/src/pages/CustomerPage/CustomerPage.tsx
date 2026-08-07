@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchCustomerDashboard } from '@/features/customer/store/customerThunks';
 import { fetchAlerts } from '@/features/alerts/store/alertsThunks';
 import { selectActiveFraudAlerts } from '@/features/alerts/store/alertsSelectors';
-import { submitChatMessage } from '@/features/chat/store/chatThunks';
+import { reconcileChatResponse, submitChatMessage } from '@/features/chat/store/chatThunks';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { EmptyState } from '@/components/EmptyState';
@@ -32,7 +32,10 @@ export function CustomerPage() {
     if (!content) return;
     setMessage('');
     try {
-      await dispatch(submitChatMessage({ message: content, conversationId: chat.conversationId || undefined })).unwrap();
+      const submitted = await dispatch(
+        submitChatMessage({ message: content, conversationId: chat.conversationId || undefined }),
+      ).unwrap();
+      void dispatch(reconcileChatResponse(submitted));
     } catch {
       setMessage(content);
     }

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:thinkfive/core/sse/sse_parser.dart';
+import 'package:mobile/core/sse/sse_parser.dart';
 
 void main() {
   group('SseParser', () {

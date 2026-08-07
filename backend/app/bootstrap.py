@@ -31,6 +31,7 @@ from app.application.customer.get_dashboard import GetDashboardUseCase
 from app.application.customer.get_profile import GetProfileUseCase
 from app.application.fraud.monitor_transactions import MonitorTransactionsUseCase
 from app.application.fraud.process_transaction import ProcessTransactionUseCase
+from app.application.fraud.simulate_transaction import SimulateTransactionUseCase
 from app.application.supervisor.metrics import SupervisorMetricsUseCase
 from app.application.supervisor.traces import GetTracesUseCase
 from app.core.config import Settings
@@ -151,6 +152,7 @@ class Container:
         self.monitor_transactions_use_case = MonitorTransactionsUseCase(
             self.banking_adapter, self.processing_repo, self.process_transaction_use_case
         )
+        self.simulate_transaction_use_case = SimulateTransactionUseCase(self.banking_adapter)
         self.supervisor_metrics_use_case = SupervisorMetricsUseCase(
             self.agent_run_repo, self.agent_event_repo, self.hitl_coordinator
         )

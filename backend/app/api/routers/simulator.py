@@ -31,6 +31,6 @@ async def simulate_transaction(
     """Create a synthetic Plaid Sandbox transaction via Banking MCP - no fabricated data."""
     container = request.app.state.container
 
-    return await container.banking_adapter.simulate_transaction(
+    return await container.simulate_transaction_use_case.execute(
         payload.customer_id, payload.amount, payload.description
     )

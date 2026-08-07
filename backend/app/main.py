@@ -91,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router)
     app.include_router(supervisor.router)
     app.include_router(policies.router)
+    app.include_router(policies.system_router)
     app.include_router(simulator.router)
     app.include_router(evaluation.router)
 

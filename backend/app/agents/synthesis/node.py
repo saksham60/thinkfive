@@ -31,6 +31,8 @@ def _build_evidence_bundle(state: GraphState) -> str:
         bundle["active_approval_id"] = state["active_approval_id"]
     if state.get("pending_human_action"):
         bundle["pending_human_action"] = state["pending_human_action"]
+    if state.get("memory_context"):
+        bundle["customer_memory_non_authoritative"] = state["memory_context"]
 
     return json.dumps(bundle, indent=2, default=str) if bundle else "(no evidence collected)"
 

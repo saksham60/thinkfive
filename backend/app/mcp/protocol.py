@@ -1,11 +1,12 @@
-"""MCP client manager and protocol."""
+"""FastMCP Streamable HTTP client and central response normalization."""
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-import httpx
+from fastmcp import Client
 
 from app.core.exceptions import MCPError
 
@@ -13,104 +14,82 @@ logger = logging.getLogger(__name__)
 
 
 class MCPClient:
-    """MCP client using Streamable HTTP protocol."""
+    """Long-lived FastMCP client for one deployed Streamable HTTP endpoint."""
 
-    def __init__(
-        self,
-        base_url: str,
-        auth_token: str,
-        timeout: int = 60,
-        max_retries: int = 3,
-    ) -> None:
+    def __init__(self, base_url: str, auth_token: str, timeout: int = 60, max_retries: int = 3) -> None:
         self.base_url = base_url.rstrip("/")
-        self.auth_token = auth_token
         self.timeout = timeout
         self.max_retries = max_retries
-        self._client: httpx.AsyncClient | None = None
+        self._client = Client(self.base_url, auth=auth_token)
+        self._connected = False
+
+    @property
+    def initialized(self) -> bool:
+        return self._connected
+
+    async def initialize(self) -> None:
+        if self._connected:
+            return
+        await self._client.__aenter__()
+        try:
+            await self._client.ping()
+        except Exception:
+            await self._client.__aexit__(None, None, None)
+            raise
+        self._connected = True
+
+    async def close(self) -> None:
+        if self._connected:
+            await self._client.__aexit__(None, None, None)
+            self._connected = False
 
     async def __aenter__(self) -> MCPClient:
-        """Async context manager entry."""
-        self._client = httpx.AsyncClient(
-            timeout=self.timeout,
-            follow_redirects=True,
-        )
+        await self.initialize()
         return self
 
     async def __aexit__(self, *args: object) -> None:
-        """Async context manager exit."""
-        if self._client:
-            await self._client.aclose()
+        await self.close()
 
-    @property
-    def client(self) -> httpx.AsyncClient:
-        """Get HTTP client."""
-        if self._client is None:
-            raise MCPError("Client not initialized - use async context manager")
-        return self._client
-
-    async def initialize(self) -> dict[str, Any]:
-        """Initialize MCP connection."""
-        try:
-            response = await self.client.post(
-                f"{self.base_url}/init",
-                json={},
-                headers={"Authorization": f"Bearer {self.auth_token}"},
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            raise MCPError(f"MCP initialization failed: {e}")
+    def _require_connected(self) -> None:
+        if not self._connected:
+            raise MCPError("MCP client is not initialized", code="MCP_NOT_INITIALIZED")
 
     async def list_tools(self) -> list[dict[str, Any]]:
-        """List available MCP tools."""
+        self._require_connected()
         try:
-            response = await self.client.post(
-                f"{self.base_url}/tools/list",
-                json={},
-                headers={"Authorization": f"Bearer {self.auth_token}"},
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data.get("tools", [])
-        except httpx.HTTPError as e:
-            raise MCPError(f"Failed to list tools: {e}")
+            tools = await self._client.list_tools()
+            return [tool.model_dump(mode="json") if hasattr(tool, "model_dump") else dict(tool) for tool in tools]
+        except Exception as exc:
+            raise MCPError(f"Failed to list MCP tools: {exc}", code="MCP_LIST_TOOLS_FAILED") from exc
 
-    async def call_tool(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Call MCP tool."""
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> Any:
+        self._require_connected()
         try:
-            payload = {
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments or {},
-                }
-            }
-            response = await self.client.post(
-                f"{self.base_url}/tools/call",
-                json=payload,
-                headers={"Authorization": f"Bearer {self.auth_token}"},
-            )
-            response.raise_for_status()
-            result = response.json()
+            result = await self._client.call_tool(tool_name, arguments or {}, timeout=float(self.timeout))
+            if getattr(result, "is_error", False):
+                raise MCPError(self._content_text(result) or f"MCP tool {tool_name} failed", code="MCP_TOOL_ERROR")
+            payload = getattr(result, "data", None)
+            if payload is None:
+                text = self._content_text(result)
+                payload = json.loads(text) if text else None
+            return self._normalize_envelope(tool_name, payload)
+        except MCPError:
+            raise
+        except Exception as exc:
+            logger.error("MCP tool call failed: %s - %s", tool_name, exc)
+            raise MCPError(f"MCP tool call failed: {tool_name}: {exc}", code="MCP_CALL_FAILED") from exc
 
-            # Extract content from MCP envelope
-            if "content" in result:
-                content = result["content"]
-                if isinstance(content, list) and len(content) > 0:
-                    first_content = content[0]
-                    if isinstance(first_content, dict) and "text" in first_content:
-                        import json
+    @staticmethod
+    def _content_text(result: Any) -> str:
+        parts = [getattr(item, "text", "") for item in (getattr(result, "content", None) or [])]
+        return "\n".join(part for part in parts if part)
 
-                        return json.loads(first_content["text"])
-
-            return result
-
-        except httpx.HTTPError as e:
-            logger.error(f"MCP tool call failed: {tool_name} - {e}")
-            raise MCPError(f"MCP tool call failed: {tool_name} - {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error calling MCP tool {tool_name}: {e}")
-            raise MCPError(f"Unexpected error: {e}")
+    @staticmethod
+    def _normalize_envelope(tool_name: str, payload: Any) -> Any:
+        if not isinstance(payload, dict) or "success" not in payload:
+            return payload
+        if payload.get("success") is True:
+            return payload.get("data")
+        code = str(payload.get("error_code") or "MCP_TOOL_ERROR")
+        message = str(payload.get("message") or f"MCP tool {tool_name} failed")
+        raise MCPError(message, code=code, retryable=bool(payload.get("retryable", False)))

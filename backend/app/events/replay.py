@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -21,7 +22,7 @@ class EventReplayService:
             {
                 "event_seq": e["event_seq"],
                 "event_type": e["event_type"],
-                "payload": e["payload"],
+                "payload": json.loads(e["payload"]) if isinstance(e["payload"], str) else e["payload"],
                 "created_at": e["created_at"],
             }
             for e in events

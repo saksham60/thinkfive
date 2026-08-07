@@ -26,6 +26,8 @@ class ResumeRunUseCase:
         interrupt = await self.coordinator.hitl_repo.get_interrupt(interrupt_id)
         if interrupt is None:
             raise ValueError(f"Interrupt {interrupt_id} not found")
+        if not interrupt.customer_id:
+            raise ValueError(f"Interrupt {interrupt_id} has no trusted customer context")
 
         await self.graph_runner.resume_run(
             run_id=interrupt.run_id,
@@ -33,4 +35,5 @@ class ResumeRunUseCase:
             thread_id=interrupt.thread_id,
             resume_payload=resume_payload,
             runtime_context=runtime_context,
+            customer_id=interrupt.customer_id,
         )

@@ -19,7 +19,7 @@ _SIMULATOR_ROLES = (Role.SUPERVISOR.value, Role.ADMIN.value)
 class SimulateTransactionRequest(BaseModel):
     customer_id: str
     amount: float
-    merchant: str | None = None
+    description: str
 
 
 @router.post("/transaction")
@@ -31,9 +31,6 @@ async def simulate_transaction(
     """Create a synthetic Plaid Sandbox transaction via Banking MCP - no fabricated data."""
     container = request.app.state.container
 
-    async with container.mcp_manager.get_banking_client() as client:
-        result = await client.call_tool(
-            "create_sandbox_transaction",
-            {"customer_id": payload.customer_id, "amount": payload.amount, "merchant": payload.merchant},
-        )
-    return result
+    return await container.banking_adapter.simulate_transaction(
+        payload.customer_id, payload.amount, payload.description
+    )

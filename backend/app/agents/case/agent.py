@@ -25,7 +25,7 @@ class CaseAgent:
         self.llm_provider = llm_provider
         self.case_adapter = case_adapter
         self.customer_id = customer_id
-        self.toolset = CaseToolset(case_adapter)
+        self.toolset = CaseToolset(case_adapter, customer_id)
         self.prompt_version = PROMPT_VERSION
 
     def create_agent(self) -> dict[str, Any]:
@@ -33,10 +33,11 @@ class CaseAgent:
         llm = self.llm_provider.get_llm(temperature=0.0)
         tools = self.toolset.get_tool_definitions()
         agent_llm = llm.bind_tools(tools)
-        structured_llm = agent_llm.with_structured_output(CaseAgentOutput)
+        structured_llm = llm.with_structured_output(CaseAgentOutput)
 
         return {
-            "llm": structured_llm,
+            "llm": agent_llm,
+            "output_llm": structured_llm,
             "prompt": prompt,
             "tools": tools,
             "toolset": self.toolset,

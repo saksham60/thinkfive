@@ -9,10 +9,19 @@ import logging
 from typing import Protocol
 from uuid import UUID
 
+import bcrypt
+
 from app.core.config import Settings
 from app.core.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
+def verify_password(password: str, hashed_password: str | None) -> bool:
+    if not hashed_password:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except (TypeError, ValueError):
+        return False
 
 
 class AuthProvider(Protocol):
@@ -49,10 +58,8 @@ class AuthenticatedUser:
 class DemoAuthProvider:
     """Demo authentication provider - signs a session token with HMAC.
 
-    Issues an HttpOnly cookie session. Passwords are checked via the
-    app_users table (hashed with passlib in a full implementation); for the
-    hackathon demo, any registered email in app_users is accepted so long
-    as the record exists and is active, matching AUTH_MODE=demo.
+    Issues an HttpOnly cookie session. Passwords are verified against the
+    bcrypt hash stored in ``app_users.hashed_password``.
     """
 
     def __init__(self, settings: Settings, user_repo: object) -> None:

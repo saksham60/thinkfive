@@ -1,7 +1,8 @@
 services:
   - type: web
     name: thinkfive-backend
-    env: docker
+    runtime: docker
+    rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: oregon

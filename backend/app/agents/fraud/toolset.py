@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.core.constants import CANONICAL_CUSTOMER_ID
+
 if TYPE_CHECKING:
     from app.mcp.adapters.fraud import FraudMCPAdapter
 
@@ -11,8 +13,9 @@ if TYPE_CHECKING:
 class FraudToolset:
     """Fraud Agent tool definitions - autonomous, non-sensitive tools only."""
 
-    def __init__(self, fraud_adapter: FraudMCPAdapter) -> None:
+    def __init__(self, fraud_adapter: FraudMCPAdapter, customer_id: str = CANONICAL_CUSTOMER_ID) -> None:
         self.fraud_adapter = fraud_adapter
+        self.customer_id = customer_id
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         return [
@@ -24,12 +27,11 @@ class FraudToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "transaction_id": {"type": "string"},
                             "device_id": {"type": "string"},
                             "channel": {"type": "string"},
                         },
-                        "required": ["customer_id", "transaction_id"],
+                        "required": ["transaction_id"],
                     },
                 },
             },
@@ -41,10 +43,8 @@ class FraudToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "history_limit": {"type": "integer", "default": 100},
                         },
-                        "required": ["customer_id"],
                     },
                 },
             },
@@ -56,10 +56,9 @@ class FraudToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
-                            "transaction_ids": {"type": "array", "items": {"type": "string"}},
+                            "transaction_limit": {"type": "integer", "default": 100},
+                            "max_results": {"type": "integer", "default": 20},
                         },
-                        "required": ["customer_id", "transaction_ids"],
                     },
                 },
             },
@@ -72,7 +71,6 @@ class FraudToolset:
                         "type": "object",
                         "properties": {
                             "device_id": {"type": "string"},
-                            "customer_id": {"type": "string"},
                         },
                         "required": ["device_id"],
                     },
@@ -87,9 +85,9 @@ class FraudToolset:
                         "type": "object",
                         "properties": {
                             "entity_type": {"type": "string"},
-                            "entity_value": {"type": "string"},
+                            "value": {"type": "string"},
                         },
-                        "required": ["entity_type", "entity_value"],
+                        "required": ["entity_type", "value"],
                     },
                 },
             },
@@ -101,13 +99,9 @@ class FraudToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "assessment_id": {"type": "string"},
-                            "alert_type": {"type": "string"},
-                            "severity": {"type": "string"},
-                            "description": {"type": "string"},
                         },
-                        "required": ["customer_id", "assessment_id", "alert_type", "severity", "description"],
+                        "required": ["assessment_id"],
                     },
                 },
             },
@@ -119,10 +113,8 @@ class FraudToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "status": {"type": "string"},
                         },
-                        "required": ["customer_id"],
                     },
                 },
             },
@@ -136,7 +128,7 @@ class FraudToolset:
                         "properties": {
                             "alert_id": {"type": "string"},
                             "status": {"type": "string"},
-                            "resolution_note": {"type": "string"},
+                            "note": {"type": "string"},
                         },
                         "required": ["alert_id", "status"],
                     },
@@ -148,36 +140,33 @@ class FraudToolset:
         adapter = self.fraud_adapter
         if tool_name == "assess_transaction_risk":
             return await adapter.assess_transaction_risk(
-                customer_id=arguments["customer_id"],
+                customer_id=self.customer_id,
                 transaction_id=arguments["transaction_id"],
                 device_id=arguments.get("device_id"),
                 channel=arguments.get("channel"),
             )
         elif tool_name == "get_customer_risk_context":
             return await adapter.get_customer_risk_context(
-                arguments["customer_id"], arguments.get("history_limit", 100)
+                self.customer_id, arguments.get("history_limit", 100)
             )
         elif tool_name == "detect_transaction_anomalies":
             return await adapter.detect_transaction_anomalies(
-                arguments["customer_id"], arguments["transaction_ids"]
+                self.customer_id, arguments.get("transaction_limit", 100), arguments.get("max_results", 20)
             )
         elif tool_name == "check_device":
-            return await adapter.check_device(arguments["device_id"], arguments.get("customer_id"))
+            return await adapter.check_device(self.customer_id, arguments["device_id"])
         elif tool_name == "check_blacklist":
-            return await adapter.check_blacklist(arguments["entity_type"], arguments["entity_value"])
+            return await adapter.check_blacklist(arguments["entity_type"], arguments["value"])
         elif tool_name == "create_fraud_alert":
             return await adapter.create_fraud_alert(
-                customer_id=arguments["customer_id"],
                 assessment_id=arguments["assessment_id"],
-                alert_type=arguments["alert_type"],
-                severity=arguments["severity"],
-                description=arguments["description"],
+                customer_id=self.customer_id,
             )
         elif tool_name == "get_fraud_alerts":
-            return await adapter.get_fraud_alerts(arguments["customer_id"], arguments.get("status"))
+            return await adapter.get_fraud_alerts(self.customer_id, arguments.get("status"))
         elif tool_name == "update_fraud_alert_status":
             return await adapter.update_fraud_alert_status(
-                arguments["alert_id"], arguments["status"], arguments.get("resolution_note")
+                arguments["alert_id"], arguments["status"], arguments.get("note"), self.customer_id
             )
         else:
             raise ValueError(f"Unknown tool: {tool_name}")

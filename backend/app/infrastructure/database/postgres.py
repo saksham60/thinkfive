@@ -24,7 +24,7 @@ class PostgresDatabase:
         if self._pool is not None:
             return
         self._pool = await asyncpg.create_pool(
-            self.settings.postgres_url,
+            self.settings.database_url,
             min_size=2,
             max_size=10,
             command_timeout=60,

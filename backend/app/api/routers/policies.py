@@ -1,38 +1,50 @@
-"""System MCP capability discovery router."""
+"""Policy retrieval API."""
 
 from __future__ import annotations
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
 
-from app.api.schemas.supervisor import MCPToolsResponse
-from app.core.constants import Role
-from app.dependencies import require_role
+from app.dependencies import get_current_user
 from app.security.auth import AuthenticatedUser
 
-router = APIRouter(prefix="/api/system", tags=["system"])
+router = APIRouter(prefix="/api/policies", tags=["policies"])
+system_router = APIRouter(prefix="/api/system", tags=["system"])
 
-_SUPERVISOR_ROLES = (Role.SUPERVISOR.value, Role.ADMIN.value)
+
+class PolicySearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=5, ge=1, le=20)
 
 
-@router.get("/mcp/tools", response_model=MCPToolsResponse)
+@router.post("/search")
+async def search_policies(
+    payload: PolicySearchRequest,
+    request: Request,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> dict:
+    container = request.app.state.container
+    results = await container.rag_service.retrieve(payload.query, top_k=payload.top_k)
+    serialized = [item.model_dump(mode="json") for item in results]
+    return {"query": payload.query, "results": serialized, "citations": [
+        {key: item[key] for key in ("document_id", "title", "version", "page", "section")}
+        for item in serialized
+    ]}
+
+
+@system_router.get("/mcp/tools")
 async def get_mcp_tools(
     request: Request,
-    user: Annotated[AuthenticatedUser, Depends(require_role(*_SUPERVISOR_ROLES))],
-) -> MCPToolsResponse:
-    """Discover actual deployed MCP tools via tools/list - prevents catalog drift."""
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> dict:
     container = request.app.state.container
-
-    async with container.mcp_manager.get_banking_client() as banking_client:
-        banking_tools = await banking_client.list_tools()
-    async with container.mcp_manager.get_fraud_client() as fraud_client:
-        fraud_tools = await fraud_client.list_tools()
-    async with container.mcp_manager.get_case_client() as case_client:
-        case_tools = await case_client.list_tools()
-
-    return MCPToolsResponse(
-        banking=[t.get("name", "") for t in banking_tools],
-        fraud=[t.get("name", "") for t in fraud_tools],
-        case=[t.get("name", "") for t in case_tools],
-    )
+    banking, fraud, case = await container.mcp_manager.get_banking_client().list_tools(), \
+        await container.mcp_manager.get_fraud_client().list_tools(), \
+        await container.mcp_manager.get_case_client().list_tools()
+    return {
+        "banking": [item.get("name", "") for item in banking],
+        "fraud": [item.get("name", "") for item in fraud],
+        "case": [item.get("name", "") for item in case],
+    }

@@ -90,6 +90,21 @@ class SubmitMessageUseCase:
 
         runtime_context = self.runtime_context_factory(customer_id)
 
+        # Bounded conversation context plus durable customer memory. Live MCP
+        # results remain authoritative and are collected later by specialists.
+        all_messages = await self.conversation_repo.get_messages(conversation.conversation_id)
+        summary = await self.memory_service.maybe_summarize(
+            conversation.conversation_id,
+            customer_id,
+            all_messages,
+            self.graph_runner.summary_threshold,
+        )
+        if summary is None:
+            stored_summary = await self.memory_service.memory_repo.get_summary(conversation.conversation_id)
+            summary = stored_summary.summary if stored_summary else None
+        recent_messages = all_messages[-self.graph_runner.recent_message_limit :]
+        memory_context = await self.memory_service.get_memory_context(customer_id)
+
         # Fire-and-forget background execution; SSE carries all further progress.
         asyncio.create_task(
             self.graph_runner.start_run(
@@ -99,6 +114,9 @@ class SubmitMessageUseCase:
                 customer_id=customer_id,
                 message=message,
                 runtime_context=runtime_context,
+                conversation_messages=recent_messages,
+                conversation_summary=summary,
+                memory_context=memory_context,
             )
         )
 

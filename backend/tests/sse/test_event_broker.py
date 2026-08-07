@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from app.events.broker import InProcessEventBroker
+from app.events.replay import EventReplayService
 
 
 class TestInProcessEventBroker:
@@ -41,3 +43,13 @@ class TestInProcessEventBroker:
 
         await broker.broadcast(conversation_id, {"event_type": "test.event", "payload": {}})
         assert queue.empty()
+
+
+async def test_replay_decodes_persisted_json_payload() -> None:
+    repo = AsyncMock()
+    repo.get_since.return_value = [{
+        "event_seq": 4, "event_type": "workflow.resumed",
+        "payload": '{"run_id":"run-1"}', "created_at": None,
+    }]
+    result = await EventReplayService(repo).replay_since(uuid4(), 3)
+    assert result[0]["payload"] == {"run_id": "run-1"}

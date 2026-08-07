@@ -25,7 +25,7 @@ class BankingAgent:
         self.llm_provider = llm_provider
         self.banking_adapter = banking_adapter
         self.customer_id = customer_id
-        self.toolset = BankingToolset(banking_adapter)
+        self.toolset = BankingToolset(banking_adapter, customer_id)
         self.prompt_version = PROMPT_VERSION
 
     def create_agent(self) -> Any:
@@ -39,12 +39,11 @@ class BankingAgent:
         # Attach tools
         tools = self.toolset.get_tool_definitions()
         agent_llm = llm.bind_tools(tools)
-
-        # Bind structured output schema
-        structured_llm = agent_llm.with_structured_output(BankingAgentOutput)
+        structured_llm = llm.with_structured_output(BankingAgentOutput)
 
         return {
-            "llm": structured_llm,
+            "llm": agent_llm,
+            "output_llm": structured_llm,
             "prompt": prompt,
             "tools": tools,
             "toolset": self.toolset,

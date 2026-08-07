@@ -19,7 +19,7 @@ MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
 async def get_connection() -> asyncpg.Connection:
     """Get database connection."""
     settings = get_settings()
-    return await asyncpg.connect(settings.postgres_url)
+    return await asyncpg.connect(settings.database_url)
 
 
 async def get_applied_migrations(conn: asyncpg.Connection) -> set[str]:

@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+
+from app.agents.tool_loop import run_grounded_tool_loop
 
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
@@ -37,6 +39,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
 
     agent_config = banking_agent.create_agent()
     llm = agent_config["llm"]
+    output_llm = agent_config["output_llm"]
     prompt = agent_config["prompt"]
     toolset = agent_config["toolset"]
 
@@ -45,11 +48,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
 
     # Add conversation context
     if messages:
-        for msg in messages[-5:]:  # Last 5 messages for context
-            if msg["role"] == "user":
-                agent_messages.append(HumanMessage(content=msg["content"]))
-            elif msg["role"] == "assistant":
-                agent_messages.append(AIMessage(content=msg["content"]))
+        agent_messages.extend(msg for msg in messages[-5:] if isinstance(msg, BaseMessage))
 
     # Add current goal
     agent_messages.append(
@@ -58,26 +57,19 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
 
     try:
         # Invoke agent with tool calling
-        response = await llm.ainvoke(agent_messages)
-
-        # Handle tool calls if present
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-
-                logger.info(f"Executing tool: {tool_name}")
-                await toolset.execute_tool(tool_name, tool_args)
-                # Tool results are fed back on the next supervisor iteration via evidence state.
-
-        # Extract structured output
-        banking_output = response if hasattr(response, "goal_completed") else None
+        configurable = config.get("configurable", {})
+        grounded = await run_grounded_tool_loop(
+            llm, output_llm, toolset, agent_messages, agent_name="banking",
+            event_publisher=configurable.get("event_publisher"), run_id=state.get("run_id"),
+            conversation_id=state.get("conversation_id"), customer_id=state.get("customer_id", ""),
+        )
+        banking_output = grounded.output
 
         if banking_output:
             # Update state with banking evidence
             banking_evidence = {
                 "goal_completed": banking_output.goal_completed,
-                "evidence": [e.model_dump() for e in banking_output.evidence],
+                "evidence": grounded.tool_results,
                 "findings": banking_output.findings,
                 "warnings": banking_output.warnings,
             }

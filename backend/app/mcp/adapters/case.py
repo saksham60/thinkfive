@@ -20,33 +20,41 @@ class CaseMCPAdapter:
         self,
         customer_id: str,
         case_type: str,
-        title: str,
-        description: str,
-        priority: str = "MEDIUM",
+        title: str | None = None,
+        description: str | None = None,
+        transaction_id: str | None = None,
+        fraud_alert_id: str | None = None,
+        assessment_id: str | None = None,
+        priority: str | None = None,
         metadata: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Create a new case."""
         args: dict[str, Any] = {
             "customer_id": customer_id,
             "case_type": case_type,
-            "title": title,
-            "description": description,
-            "priority": priority,
         }
-        if metadata:
-            args["metadata"] = metadata
+        optional = {
+            "title": title, "description": description, "transaction_id": transaction_id,
+            "fraud_alert_id": fraud_alert_id, "assessment_id": assessment_id,
+            "priority": priority, "metadata": metadata, "idempotency_key": idempotency_key,
+        }
+        args.update({key: value for key, value in optional.items() if value is not None})
 
         return await self.client.call_tool("create_case", args)
 
     async def create_case_from_fraud_alert(
         self,
-        alert_id: str,
+        fraud_alert_id: str,
         title: str | None = None,
+        description: str | None = None,
     ) -> dict[str, Any]:
         """Create case from fraud alert."""
-        args: dict[str, Any] = {"alert_id": alert_id}
+        args: dict[str, Any] = {"fraud_alert_id": fraud_alert_id}
         if title:
             args["title"] = title
+        if description:
+            args["description"] = description
 
         return await self.client.call_tool("create_case_from_fraud_alert", args)
 
@@ -179,20 +187,16 @@ class CaseMCPAdapter:
 
     async def send_customer_notification(
         self,
-        customer_id: str,
-        notification_type: str,
-        title: str,
-        message: str,
-        channel: str = "EMAIL",
+        case_id: str,
+        channel: str,
+        content: str,
+        subject: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Send customer notification."""
-        return await self.client.call_tool(
-            "send_customer_notification",
-            {
-                "customer_id": customer_id,
-                "notification_type": notification_type,
-                "title": title,
-                "message": message,
-                "channel": channel,
-            },
-        )
+        args: dict[str, Any] = {"case_id": case_id, "channel": channel, "content": content}
+        if subject is not None:
+            args["subject"] = subject
+        if idempotency_key is not None:
+            args["idempotency_key"] = idempotency_key
+        return await self.client.call_tool("send_customer_notification", args)

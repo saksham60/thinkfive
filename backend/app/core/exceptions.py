@@ -43,7 +43,9 @@ class ConflictError(DomainError):
 class MCPError(DomainError):
     """MCP communication error."""
 
-    pass
+    def __init__(self, message: str, code: str | None = None, retryable: bool = False) -> None:
+        super().__init__(message, code)
+        self.retryable = retryable
 
 
 class LLMError(DomainError):

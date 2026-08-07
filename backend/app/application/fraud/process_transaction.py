@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from app.core.constants import EventType
+from app.core.exceptions import MCPError
 
 if TYPE_CHECKING:
     from app.events.publisher import EventPublisher
@@ -13,10 +14,6 @@ if TYPE_CHECKING:
     from app.mcp.adapters.fraud import FraudMCPAdapter
 
 logger = logging.getLogger(__name__)
-
-# Severity levels eligible for automatic alert creation
-_ALERT_ELIGIBLE_SEVERITIES = frozenset({"HIGH", "CRITICAL"})
-
 
 class ProcessTransactionUseCase:
     """Assesses a single transaction and creates a fraud alert if warranted.
@@ -39,18 +36,17 @@ class ProcessTransactionUseCase:
             return None
 
         assessment = await self.fraud_adapter.assess_transaction_risk(customer_id, transaction_id)
-        severity = assessment.get("severity")
-
         alert_id = None
-        if severity in _ALERT_ELIGIBLE_SEVERITIES:
+        try:
             alert = await self.fraud_adapter.create_fraud_alert(
-                customer_id=customer_id,
                 assessment_id=assessment["assessment_id"],
-                alert_type="TRANSACTION_MONITOR",
-                severity=severity,
-                description=f"Automated monitor flagged transaction {transaction_id}",
+                customer_id=customer_id,
             )
             alert_id = alert.get("alert_id")
+        except MCPError as exc:
+            if exc.code != "ASSESSMENT_BELOW_ALERT_THRESHOLD":
+                raise
+            logger.info("Assessment %s is a valid no-alert outcome", assessment["assessment_id"])
 
         await self.processing_repo.mark_processed(
             customer_id, transaction_id, assessment_id=assessment.get("assessment_id"), alert_id=alert_id

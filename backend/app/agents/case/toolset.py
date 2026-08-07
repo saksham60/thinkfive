@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.core.constants import CANONICAL_CUSTOMER_ID
+
 if TYPE_CHECKING:
     from app.mcp.adapters.case import CaseMCPAdapter
 
@@ -42,8 +44,9 @@ FORBIDDEN_TOOLS = frozenset(
 class CaseToolset:
     """Case Agent tool definitions - excludes sensitive human-only actions."""
 
-    def __init__(self, case_adapter: CaseMCPAdapter) -> None:
+    def __init__(self, case_adapter: CaseMCPAdapter, customer_id: str = CANONICAL_CUSTOMER_ID) -> None:
         self.case_adapter = case_adapter
+        self.customer_id = customer_id
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         return [
@@ -55,13 +58,12 @@ class CaseToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "case_type": {"type": "string"},
                             "title": {"type": "string"},
                             "description": {"type": "string"},
                             "priority": {"type": "string", "default": "MEDIUM"},
                         },
-                        "required": ["customer_id", "case_type", "title", "description"],
+                        "required": ["case_type"],
                     },
                 },
             },
@@ -72,8 +74,8 @@ class CaseToolset:
                     "description": "Create a case directly from an existing fraud alert.",
                     "parameters": {
                         "type": "object",
-                        "properties": {"alert_id": {"type": "string"}, "title": {"type": "string"}},
-                        "required": ["alert_id"],
+                        "properties": {"fraud_alert_id": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}},
+                        "required": ["fraud_alert_id"],
                     },
                 },
             },
@@ -97,7 +99,6 @@ class CaseToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
                             "status": {"type": "string"},
                             "case_type": {"type": "string"},
                         },
@@ -147,12 +148,12 @@ class CaseToolset:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "customer_id": {"type": "string"},
-                            "notification_type": {"type": "string"},
-                            "title": {"type": "string"},
-                            "message": {"type": "string"},
+                            "case_id": {"type": "string"},
+                            "channel": {"type": "string"},
+                            "content": {"type": "string"},
+                            "subject": {"type": "string"},
                         },
-                        "required": ["customer_id", "notification_type", "title", "message"],
+                        "required": ["case_id", "channel", "content"],
                     },
                 },
             },
@@ -168,13 +169,13 @@ class CaseToolset:
 
         adapter = self.case_adapter
         if tool_name == "create_case":
-            return await adapter.create_case(**arguments)
+            return await adapter.create_case(customer_id=self.customer_id, **arguments)
         elif tool_name == "create_case_from_fraud_alert":
             return await adapter.create_case_from_fraud_alert(**arguments)
         elif tool_name == "get_case":
             return await adapter.get_case(arguments["case_id"])
         elif tool_name == "search_cases":
-            return await adapter.search_cases(**arguments)
+            return await adapter.search_cases(customer_id=self.customer_id, **arguments)
         elif tool_name == "add_case_note":
             return await adapter.add_case_note(**arguments)
         elif tool_name == "request_approval":

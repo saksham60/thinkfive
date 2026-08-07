@@ -30,19 +30,19 @@ class EvaluationRunner:
 
         passed_count = 0
         failed_count = 0
+        skipped_count = 0
 
         for case in cases:
             start = time.monotonic()
             try:
-                # Real evaluation would invoke the graph here via graph_runner_factory.
-                # For categories without live execution wiring, mark as skipped explicitly
-                # rather than fabricating a pass.
-                passed = False
-                error = "Evaluation execution not wired for this environment"
-                self.evaluation_repo and None
+                if self.graph_runner_factory is None:
+                    raise RuntimeError("Evaluation graph executor is unavailable")
+                actual = await self.graph_runner_factory(case)
+                passed = self._score_case(category, case, actual)
+                error = None if passed else "Evaluation assertion failed"
             except Exception as e:
                 passed = False
-                error = str(e)
+                error = f"SKIPPED: {e}"
 
             duration_ms = (time.monotonic() - start) * 1000
             await self.evaluation_repo.record_result(
@@ -52,13 +52,15 @@ class EvaluationRunner:
                 duration_ms=duration_ms,
                 error_message=error,
             )
-            if passed:
+            if error and error.startswith("SKIPPED:"):
+                skipped_count += 1
+            elif passed:
                 passed_count += 1
             else:
                 failed_count += 1
 
         await self.evaluation_repo.complete_run(
-            run_id, total=len(cases), passed=passed_count, failed=failed_count, skipped=0
+            run_id, total=len(cases), passed=passed_count, failed=failed_count, skipped=skipped_count
         )
 
         return {
@@ -67,4 +69,23 @@ class EvaluationRunner:
             "total": len(cases),
             "passed": passed_count,
             "failed": failed_count,
+            "skipped": skipped_count,
         }
+
+    def _score_case(self, category: str, case: dict[str, Any], actual: dict[str, Any]) -> bool:
+        if category == "PII":
+            return self.pii_scorer.score(actual.get("final_response", ""))
+        if category == "authorization":
+            return bool(actual.get("authorization_safe"))
+        if category == "hitl":
+            return bool(actual.get("interrupted") and actual.get("approval_id"))
+        if category == "rag_grounding":
+            citations = actual.get("policy_evidence", {}).get("citations", [])
+            retrieved = actual.get("policy_evidence", {}).get("retrieved_chunks", [])
+            document_ids = {str(item.get("document_id")) for item in retrieved}
+            return bool(retrieved) and all(str(item.get("document_id")) in document_ids for item in citations)
+        expected_agent = case.get("expected_agent")
+        if expected_agent and not self.routing_scorer.score(expected_agent, actual.get("actual_agent")):
+            return False
+        expected_tools = set(case.get("expected_tools") or [])
+        return expected_tools.issubset(set(actual.get("actual_tools") or []))

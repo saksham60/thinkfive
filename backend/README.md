@@ -99,6 +99,8 @@ PostgreSQL via Supabase with:
 
 **Does NOT duplicate MCP-owned tables** (fraud_assessments, cases, approvals, card_states).
 
+The PostgreSQL DSN is read directly from `DATABASE_URL`; it is never derived from Supabase API keys.
+
 ## Setup
 
 ```bash
@@ -123,6 +125,10 @@ uvicorn app.main:app --reload
 ### Chat
 - `POST /api/chat` - Submit message (async, returns run_id)
 - `GET /api/events` - SSE stream for conversation updates
+
+### Auth and policies
+- `GET /api/auth/me` - Current authenticated identity
+- `POST /api/policies/search` - Hybrid policy retrieval with evidence/citations
 
 ### Customers
 - `GET /api/customers/me` - Current customer profile
@@ -229,6 +235,8 @@ backend/
 All configuration via environment variables (see `.env`).
 
 Critical settings:
+- `DATABASE_URL` - Direct PostgreSQL DSN for asyncpg, migrations, RAG, and checkpoints
+- `MCP_BASE_URL` / `MCP_AUTH_TOKEN` - Shared deployed MCP platform settings
 - `AUTH_MODE=demo` - Demo auth (no Supabase Auth required)
 - `HITL_ENABLED=true` - Enable human-in-the-loop
 - `MONITOR_ENABLED=true` - Enable transaction monitoring
@@ -249,6 +257,9 @@ Backend discovers actual MCP tools at runtime:
 ```
 
 ## Security Considerations
+
+Demo credentials are `demo@thinkfive.ai` / `demo123` and `analyst@thinkfive.ai` / `analyst123`.
+Permissive CORS is intentionally retained for the demo phase and must be tightened before production.
 
 **Autonomous agents NEVER have access to:**
 - `approve_action`

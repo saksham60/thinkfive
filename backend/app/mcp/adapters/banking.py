@@ -115,6 +115,20 @@ class BankingMCPAdapter:
             {"customer_id": customer_id},
         )
 
+    async def verify_customer_identity(
+        self,
+        customer_id: str,
+        name: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        address: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {"customer_id": customer_id}
+        for key, value in {"name": name, "phone": phone, "email": email, "address": address}.items():
+            if value is not None:
+                args[key] = value
+        return await self.client.call_tool("verify_customer_identity", args)
+
     async def get_liabilities(self, customer_id: str) -> dict[str, Any]:
         """Get customer liabilities."""
         return await self.client.call_tool(
@@ -128,3 +142,14 @@ class BankingMCPAdapter:
             "get_banking_connection_status",
             {"customer_id": customer_id},
         )
+
+    async def refresh_transactions(self, customer_id: str) -> dict[str, Any]:
+        return await self.client.call_tool("refresh_transactions", {"customer_id": customer_id})
+
+    async def simulate_transaction(
+        self, customer_id: str, amount: float, description: str, transaction_date: str | date | None = None
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {"customer_id": customer_id, "amount": amount, "description": description}
+        if transaction_date is not None:
+            args["date"] = str(transaction_date)
+        return await self.client.call_tool("simulate_transaction", args)

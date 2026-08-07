@@ -48,10 +48,17 @@ async def knowledge_node(state: GraphState, config: RunnableConfig) -> dict[str,
     try:
         response = await llm.ainvoke(messages)
 
+        valid_document_ids = {str(item.document_id) for item in retrieved}
+        citations = [
+            citation.model_dump()
+            for citation in response.citations
+            if str(citation.document_id) in valid_document_ids
+        ]
         policy_evidence = {
             "goal_completed": response.goal_completed,
             "findings": response.findings,
-            "citations": [c.model_dump() for c in response.citations],
+            "citations": citations,
+            "retrieved_chunks": [item.model_dump() for item in retrieved],
             "evidence_available": response.evidence_available,
         }
 

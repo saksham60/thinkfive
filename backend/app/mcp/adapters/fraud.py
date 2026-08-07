@@ -77,71 +77,65 @@ class FraudMCPAdapter:
     async def detect_transaction_anomalies(
         self,
         customer_id: str,
-        transaction_ids: list[str],
+        transaction_limit: int = 100,
+        max_results: int = 20,
     ) -> dict[str, Any]:
         """Detect transaction anomalies."""
         return await self.client.call_tool(
             "detect_transaction_anomalies",
-            {"customer_id": customer_id, "transaction_ids": transaction_ids},
+            {"customer_id": customer_id, "transaction_limit": transaction_limit, "max_results": max_results},
         )
 
     async def check_device(
         self,
+        customer_id: str,
         device_id: str,
-        customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Check device trust status."""
-        args: dict[str, Any] = {"device_id": device_id}
-        if customer_id:
-            args["customer_id"] = customer_id
-
-        return await self.client.call_tool("check_device", args)
+        return await self.client.call_tool("check_device", {"customer_id": customer_id, "device_id": device_id})
 
     async def check_blacklist(
         self,
         entity_type: str,
-        entity_value: str,
+        value: str,
     ) -> dict[str, Any]:
         """Check blacklist."""
         return await self.client.call_tool(
             "check_blacklist",
-            {"entity_type": entity_type, "entity_value": entity_value},
+            {"entity_type": entity_type, "value": value},
         )
 
     async def create_fraud_alert(
         self,
-        customer_id: str,
         assessment_id: str,
-        alert_type: str,
-        severity: str,
-        description: str,
+        customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Create fraud alert."""
-        return await self.client.call_tool(
-            "create_fraud_alert",
-            {
-                "customer_id": customer_id,
-                "assessment_id": assessment_id,
-                "alert_type": alert_type,
-                "severity": severity,
-                "description": description,
-            },
-        )
+        args: dict[str, Any] = {"assessment_id": assessment_id}
+        if customer_id is not None:
+            args["customer_id"] = customer_id
+        return await self.client.call_tool("create_fraud_alert", args)
 
-    async def get_fraud_alert(self, alert_id: str) -> dict[str, Any]:
+    async def get_fraud_alert(self, alert_id: str, customer_id: str | None = None) -> dict[str, Any]:
         """Get fraud alert."""
-        return await self.client.call_tool("get_fraud_alert", {"alert_id": alert_id})
+        args: dict[str, Any] = {"alert_id": alert_id}
+        if customer_id is not None:
+            args["customer_id"] = customer_id
+        return await self.client.call_tool("get_fraud_alert", args)
 
     async def get_fraud_alerts(
         self,
         customer_id: str,
         status: str | None = None,
-        limit: int = 50,
+        severity: str | None = None,
+        limit: int = 100,
     ) -> dict[str, Any]:
         """Get fraud alerts for customer."""
         args: dict[str, Any] = {"customer_id": customer_id, "limit": limit}
         if status:
             args["status"] = status
+        if severity:
+            args["severity"] = severity
 
         return await self.client.call_tool("get_fraud_alerts", args)
 
@@ -149,11 +143,14 @@ class FraudMCPAdapter:
         self,
         alert_id: str,
         status: str,
-        resolution_note: str | None = None,
+        note: str | None = None,
+        customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Update fraud alert status."""
         args: dict[str, Any] = {"alert_id": alert_id, "status": status}
-        if resolution_note:
-            args["resolution_note"] = resolution_note
+        if note:
+            args["note"] = note
+        if customer_id:
+            args["customer_id"] = customer_id
 
         return await self.client.call_tool("update_fraud_alert_status", args)

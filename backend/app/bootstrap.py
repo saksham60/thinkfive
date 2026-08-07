@@ -179,26 +179,29 @@ class Container:
 
     def build_runtime_context(self, customer_id: str) -> dict[str, Any]:
         """Build the `configurable` dict passed into every graph invocation."""
-        return self.build_agents_for_customer(customer_id)
+        return {**self.build_agents_for_customer(customer_id), "event_publisher": self.event_publisher}
 
-    def build_runtime_context_for_resume(self) -> dict[str, Any]:
-        """Build runtime context for a resumed run (customer_id is embedded in the thread)."""
-        # Agents are stateless enough to reconstruct without knowing customer_id ahead of time;
-        # customer_id is already present in the persisted graph state.
-        return self.build_agents_for_customer(customer_id="")
+    def build_runtime_context_for_resume(self, customer_id: str) -> dict[str, Any]:
+        """Rebuild resumed specialists with the persisted trusted customer identity."""
+        return {**self.build_agents_for_customer(customer_id=customer_id), "event_publisher": self.event_publisher}
 
     async def wire_graph(self) -> None:
         """Finish wiring the components that require an async-initialized checkpointer."""
         checkpointer = await self.checkpointer_factory.setup()
         self.graph = build_graph(checkpointer)
+        self.evaluation_runner.graph_runner_factory = self._execute_evaluation_case
 
         self.graph_runner = GraphRunner(
             self.graph,
             self.agent_run_repo,
             self.agent_event_repo,
             self.event_publisher,
-            None,
+            self.hitl_coordinator,
+            self.conversation_repo,
+            self.memory_service,
             max_iterations=self.settings.graph_max_iterations,
+            recent_message_limit=self.settings.memory_recent_messages,
+            summary_threshold=self.settings.memory_summary_threshold,
         )
 
         self.hitl_service = HITLService(
@@ -207,6 +210,7 @@ class Container:
             self.case_adapter,
             self.agent_run_repo,
             self.graph_runner,
+            self.event_publisher,
         )
 
         self.submit_message_use_case = SubmitMessageUseCase(
@@ -221,11 +225,74 @@ class Container:
         self.reject_action_use_case = RejectActionUseCase(self.hitl_service)
         self.resume_run_use_case = ResumeRunUseCase(self.hitl_coordinator, self.graph_runner)
 
+    async def _execute_evaluation_case(self, case: dict[str, Any]) -> dict[str, Any]:
+        """Execute one isolated golden case against the compiled graph."""
+        from uuid import uuid4
+
+        from langchain_core.messages import HumanMessage
+
+        from app.agents.case.toolset import FORBIDDEN_TOOLS
+
+        if case.get("category") == "authorization":
+            definitions = CaseAgent(
+                self.llm_factory.create(), self.case_adapter, "demo_customer_001"
+            ).toolset.get_tool_definitions()
+            names = {item["function"]["name"] for item in definitions}
+            return {"authorization_safe": names.isdisjoint(FORBIDDEN_TOOLS)}
+
+        thread_id = f"evaluation-{uuid4()}"
+        metadata = case.get("metadata") or {}
+        if isinstance(metadata, str):
+            import json
+            metadata = json.loads(metadata)
+        customer_id = str(metadata.get("customer_id") or "demo_customer_001")
+        config = {
+            "configurable": {
+                "thread_id": thread_id, "customer_id": customer_id,
+                "max_iterations": self.settings.graph_max_iterations,
+                **self.build_agents_for_customer(customer_id),
+            },
+            "recursion_limit": self.settings.graph_recursion_limit,
+        }
+        result = await self.graph.ainvoke(
+            {
+                "messages": [HumanMessage(content=case["input_message"])],
+                "conversation_id": str(uuid4()), "run_id": str(uuid4()),
+                "thread_id": thread_id, "customer_id": customer_id,
+                "iteration_count": 0, "warnings": [], "errors": [], "memory_context": {},
+            },
+            config=config,
+        )
+        snapshot = await self.graph.aget_state(config)
+        evidence_to_agent = {
+            "banking_evidence": "banking", "fraud_evidence": "fraud",
+            "policy_evidence": "knowledge", "case_evidence": "case",
+        }
+        actual_agent = next((agent for key, agent in evidence_to_agent.items() if result.get(key)), None)
+        actual_tools = [
+            item.get("tool")
+            for key in evidence_to_agent
+            for item in (result.get(key, {}).get("evidence", []) if isinstance(result.get(key), dict) else [])
+            if isinstance(item, dict) and item.get("tool")
+        ]
+        pending = (snapshot.values or {}).get("pending_human_action") or {}
+        return {
+            **result, "actual_agent": actual_agent, "actual_tools": actual_tools,
+            "interrupted": bool(snapshot.next), "approval_id": pending.get("approval_id"),
+        }
+
     async def startup(self) -> None:
         """Startup sequence: connect DB, wire graph, recover stale runs."""
         await self.db.connect()
-        await self.wire_graph()
-        await self._recover_stale_runs()
+        try:
+            await self.mcp_manager.initialize()
+            await self.wire_graph()
+            await self._recover_stale_runs()
+        except Exception:
+            await self.mcp_manager.close_all()
+            await self.checkpointer_factory.close()
+            await self.db.disconnect()
+            raise
         logger.info("Container startup complete")
 
     async def _recover_stale_runs(self) -> None:

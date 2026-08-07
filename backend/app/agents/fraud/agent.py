@@ -25,7 +25,7 @@ class FraudAgent:
         self.llm_provider = llm_provider
         self.fraud_adapter = fraud_adapter
         self.customer_id = customer_id
-        self.toolset = FraudToolset(fraud_adapter)
+        self.toolset = FraudToolset(fraud_adapter, customer_id)
         self.prompt_version = PROMPT_VERSION
 
     def create_agent(self, transaction_context: str | None = None) -> dict[str, Any]:
@@ -33,10 +33,11 @@ class FraudAgent:
         llm = self.llm_provider.get_llm(temperature=0.0)
         tools = self.toolset.get_tool_definitions()
         agent_llm = llm.bind_tools(tools)
-        structured_llm = agent_llm.with_structured_output(FraudAgentOutput)
+        structured_llm = llm.with_structured_output(FraudAgentOutput)
 
         return {
-            "llm": structured_llm,
+            "llm": agent_llm,
+            "output_llm": structured_llm,
             "prompt": prompt,
             "tools": tools,
             "toolset": self.toolset,

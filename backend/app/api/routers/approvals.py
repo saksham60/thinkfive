@@ -39,7 +39,10 @@ async def approve_action(
     user: Annotated[AuthenticatedUser, Depends(require_role(*_APPROVER_ROLES))],
 ) -> ApprovalActionResponse:
     container = request.app.state.container
-    runtime_context = container.build_runtime_context_for_resume()
+    interrupt = await container.hitl_coordinator.find_waiting_by_approval(approval_id)
+    if interrupt is None or not interrupt.customer_id:
+        raise HTTPException(status_code=404, detail=f"No waiting workflow found for approval_id={approval_id}")
+    runtime_context = container.build_runtime_context_for_resume(interrupt.customer_id)
 
     try:
         result = await container.approve_action_use_case.execute(
@@ -62,7 +65,10 @@ async def reject_action(
     user: Annotated[AuthenticatedUser, Depends(require_role(*_APPROVER_ROLES))],
 ) -> ApprovalActionResponse:
     container = request.app.state.container
-    runtime_context = container.build_runtime_context_for_resume()
+    interrupt = await container.hitl_coordinator.find_waiting_by_approval(approval_id)
+    if interrupt is None or not interrupt.customer_id:
+        raise HTTPException(status_code=404, detail=f"No waiting workflow found for approval_id={approval_id}")
+    runtime_context = container.build_runtime_context_for_resume(interrupt.customer_id)
 
     try:
         result = await container.reject_action_use_case.execute(

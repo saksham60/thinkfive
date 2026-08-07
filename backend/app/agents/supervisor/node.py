@@ -24,7 +24,11 @@ def _summarize_evidence(state: GraphState) -> str:
         if evidence:
             parts.append(f"- {key}: {evidence.get('findings', 'present')}")
     if not parts:
-        return "(no evidence collected yet)"
+        memory = state.get("memory_context") or {}
+        return f"(no live evidence collected yet)\nCustomer memory (non-authoritative): {memory}"
+    memory = state.get("memory_context") or {}
+    if memory:
+        parts.append(f"- customer_memory (non-authoritative): {memory}")
     return "\n".join(parts)
 
 

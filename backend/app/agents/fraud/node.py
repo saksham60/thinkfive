@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.agents.tool_loop import find_grounded_value, run_grounded_tool_loop
+
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
 
@@ -34,6 +36,7 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
 
     agent_config = fraud_agent.create_agent(transaction_context)
     llm = agent_config["llm"]
+    output_llm = agent_config["output_llm"]
     prompt = agent_config["prompt"]
     toolset = agent_config["toolset"]
 
@@ -43,23 +46,23 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
     ]
 
     try:
-        response = await llm.ainvoke(messages)
-
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            for tool_call in response.tool_calls:
-                await toolset.execute_tool(tool_call["name"], tool_call["args"])
-
-        fraud_output = response if hasattr(response, "goal_completed") else None
+        configurable = config.get("configurable", {})
+        grounded = await run_grounded_tool_loop(
+            llm, output_llm, toolset, messages, agent_name="fraud",
+            event_publisher=configurable.get("event_publisher"), run_id=state.get("run_id"),
+            conversation_id=state.get("conversation_id"), customer_id=state.get("customer_id", ""),
+        )
+        fraud_output = grounded.output
 
         if fraud_output:
             fraud_evidence = {
                 "goal_completed": fraud_output.goal_completed,
-                "evidence": [e.model_dump() for e in fraud_output.evidence],
+                "evidence": grounded.tool_results,
                 "findings": fraud_output.findings,
-                "assessment_id": fraud_output.assessment_id,
-                "alert_id": fraud_output.alert_id,
-                "risk_score": fraud_output.risk_score,
-                "severity": fraud_output.severity,
+                "assessment_id": find_grounded_value(grounded.tool_results, "assessment_id"),
+                "alert_id": find_grounded_value(grounded.tool_results, "alert_id"),
+                "risk_score": find_grounded_value(grounded.tool_results, "risk_score"),
+                "severity": find_grounded_value(grounded.tool_results, "severity"),
                 "requires_case": fraud_output.requires_case,
             }
 
@@ -67,8 +70,8 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
                 "fraud_evidence": fraud_evidence,
                 "warnings": state.get("warnings", []) + fraud_output.warnings,
             }
-            if fraud_output.alert_id:
-                update["active_alert_id"] = fraud_output.alert_id
+            if fraud_evidence["alert_id"]:
+                update["active_alert_id"] = fraud_evidence["alert_id"]
             return update
 
         return {"warnings": state.get("warnings", []) + ["Fraud Agent did not return structured output"]}

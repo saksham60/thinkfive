@@ -76,6 +76,19 @@ class PostgresConversationRepository:
         assert row is not None
         return _row_to_message(row)
 
+    async def has_assistant_message_for_run(self, conversation_id: UUID, run_id: UUID) -> bool:
+        return bool(
+            await self.db.fetchval(
+                """SELECT EXISTS(
+                    SELECT 1 FROM messages
+                    WHERE conversation_id = $1 AND role = 'assistant'
+                      AND metadata->>'run_id' = $2
+                )""",
+                conversation_id,
+                str(run_id),
+            )
+        )
+
     async def get_messages(self, conversation_id: UUID, limit: int | None = None) -> list[Message]:
         if limit:
             rows = await self.db.fetch(

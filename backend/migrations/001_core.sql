@@ -183,12 +183,12 @@ ON CONFLICT (customer_id) DO NOTHING;
 
 -- Insert demo user
 INSERT INTO app_users (email, role, customer_id, hashed_password)
-VALUES ('demo@thinkfive.ai', 'CUSTOMER', 'demo_customer_001', '$2b$12$demo')
+VALUES ('demo@thinkfive.ai', 'CUSTOMER', 'demo_customer_001', '$2b$12$ug0GbmCtlhFDk9JEGOWD0ujC3BogvQhOsPcxyTnXRLSN/U8kxypoG')
 ON CONFLICT (email) DO NOTHING;
 
 -- Insert demo analyst
 INSERT INTO app_users (email, role, hashed_password)
-VALUES ('analyst@thinkfive.ai', 'ANALYST', '$2b$12$demo')
+VALUES ('analyst@thinkfive.ai', 'ANALYST', '$2b$12$NafccG65kpW7LzK9Y/F08uqYhrdsHYuHkru6KMDGD5LUdFN9ku6bW')
 ON CONFLICT (email) DO NOTHING;
 
 -- Record migration

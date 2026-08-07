@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.agents.tool_loop import find_grounded_value, run_grounded_tool_loop
+
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
 
@@ -25,6 +27,7 @@ async def case_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]
 
     agent_config = case_agent.create_agent()
     llm = agent_config["llm"]
+    output_llm = agent_config["output_llm"]
     prompt = agent_config["prompt"]
     toolset = agent_config["toolset"]
 
@@ -39,36 +42,36 @@ async def case_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]
     ]
 
     try:
-        response = await llm.ainvoke(messages)
-
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            for tool_call in response.tool_calls:
-                await toolset.execute_tool(tool_call["name"], tool_call["args"])
-
-        case_output = response if hasattr(response, "goal_completed") else None
+        configurable = config.get("configurable", {})
+        grounded = await run_grounded_tool_loop(
+            llm, output_llm, toolset, messages, agent_name="case",
+            event_publisher=configurable.get("event_publisher"), run_id=state.get("run_id"),
+            conversation_id=state.get("conversation_id"), customer_id=state.get("customer_id", ""),
+        )
+        case_output = grounded.output
 
         if case_output:
             case_evidence = {
                 "goal_completed": case_output.goal_completed,
-                "evidence": [e.model_dump() for e in case_output.evidence],
+                "evidence": grounded.tool_results,
                 "findings": case_output.findings,
-                "case_id": case_output.case_id,
-                "approval_id": case_output.approval_id,
+                "case_id": find_grounded_value(grounded.tool_results, "case_id"),
+                "approval_id": find_grounded_value(grounded.tool_results, "approval_id"),
             }
 
             update: dict[str, Any] = {
                 "case_evidence": case_evidence,
                 "warnings": state.get("warnings", []) + case_output.warnings,
             }
-            if case_output.case_id:
-                update["active_case_id"] = case_output.case_id
-            if case_output.approval_id:
-                update["active_approval_id"] = case_output.approval_id
+            if case_evidence["case_id"]:
+                update["active_case_id"] = case_evidence["case_id"]
+            if case_evidence["approval_id"]:
+                update["active_approval_id"] = case_evidence["approval_id"]
                 # Signal that a human decision is now required - graph will interrupt.
                 update["pending_human_action"] = {
                     "type": "approval",
-                    "approval_id": case_output.approval_id,
-                    "case_id": case_output.case_id,
+                    "approval_id": case_evidence["approval_id"],
+                    "case_id": case_evidence["case_id"],
                 }
             return update
 

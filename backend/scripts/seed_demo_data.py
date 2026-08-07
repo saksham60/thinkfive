@@ -35,30 +35,34 @@ async def seed() -> None:
 
         await db.execute(
             """
-            INSERT INTO app_users (email, role, customer_id, is_active)
-            VALUES ('demo@thinkfive.ai', 'CUSTOMER', 'demo_customer_001', TRUE)
-            ON CONFLICT (email) DO NOTHING
+            INSERT INTO app_users (email, role, customer_id, hashed_password, is_active)
+            VALUES ('demo@thinkfive.ai', 'CUSTOMER', 'demo_customer_001',
+                    '$2b$12$ug0GbmCtlhFDk9JEGOWD0ujC3BogvQhOsPcxyTnXRLSN/U8kxypoG', TRUE)
+            ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password
             """
         )
         await db.execute(
             """
-            INSERT INTO app_users (email, role, is_active)
-            VALUES ('analyst@thinkfive.ai', 'ANALYST', TRUE)
-            ON CONFLICT (email) DO NOTHING
+            INSERT INTO app_users (email, role, hashed_password, is_active)
+            VALUES ('analyst@thinkfive.ai', 'ANALYST',
+                    '$2b$12$NafccG65kpW7LzK9Y/F08uqYhrdsHYuHkru6KMDGD5LUdFN9ku6bW', TRUE)
+            ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password
             """
         )
         await db.execute(
             """
-            INSERT INTO app_users (email, role, is_active)
-            VALUES ('supervisor@thinkfive.ai', 'SUPERVISOR', TRUE)
-            ON CONFLICT (email) DO NOTHING
+            INSERT INTO app_users (email, role, hashed_password, is_active)
+            VALUES ('supervisor@thinkfive.ai', 'SUPERVISOR',
+                    '$2b$12$fzzS7LTiuNTwxZGiwMgGFOUBU0xrpp5scSccZoAaz86NfCuporMZe', TRUE)
+            ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password
             """
         )
         await db.execute(
             """
-            INSERT INTO app_users (email, role, is_active)
-            VALUES ('admin@thinkfive.ai', 'ADMIN', TRUE)
-            ON CONFLICT (email) DO NOTHING
+            INSERT INTO app_users (email, role, hashed_password, is_active)
+            VALUES ('admin@thinkfive.ai', 'ADMIN',
+                    '$2b$12$SegobeOZAaIqwRa7RacoGOR.EMgPiwCMVnz5jo5AZLfYZ6r17tRzy', TRUE)
+            ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password
             """
         )
 

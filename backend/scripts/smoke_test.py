@@ -45,7 +45,7 @@ async def run_smoke_test() -> bool:
 
         # 3. Customer login
         try:
-            resp = await client.post("/api/auth/login", json={"email": "demo@thinkfive.ai", "password": "demo"})
+            resp = await client.post("/api/auth/login", json={"email": "demo@thinkfive.ai", "password": "demo123"})
             passed = resp.status_code == 200
             record("Customer login", passed)
             cookies = resp.cookies if passed else None
@@ -58,6 +58,12 @@ async def run_smoke_test() -> bool:
             return False
 
         client.cookies.update(cookies)
+
+        try:
+            resp = await client.get("/api/auth/me")
+            record("Authenticated user context", resp.status_code == 200 and resp.json().get("customer_id") == "demo_customer_001")
+        except Exception as e:
+            record("Authenticated user context", False, str(e))
 
         # 4. Start conversation / banking question
         conversation_id = None
@@ -87,7 +93,7 @@ async def run_smoke_test() -> bool:
         try:
             analyst_client = httpx.AsyncClient(base_url=BASE_URL, timeout=30.0)
             resp = await analyst_client.post(
-                "/api/auth/login", json={"email": "analyst@thinkfive.ai", "password": "demo"}
+                "/api/auth/login", json={"email": "analyst@thinkfive.ai", "password": "analyst123"}
             )
             passed = resp.status_code == 200
             record("Analyst login", passed)

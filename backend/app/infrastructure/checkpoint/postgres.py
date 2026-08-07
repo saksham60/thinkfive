@@ -30,7 +30,7 @@ class CheckpointerFactory:
         if self._saver is not None:
             return self._saver
 
-        ctx = AsyncPostgresSaver.from_conn_string(self.settings.postgres_url)
+        ctx = AsyncPostgresSaver.from_conn_string(self.settings.database_url)
         self._saver = await ctx.__aenter__()
         self._cm = ctx
         await self._saver.setup()

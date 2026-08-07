@@ -40,27 +40,17 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # Set true in production with HTTPS
     cookie_samesite: str = "lax"
 
-    # Database (PostgreSQL via Supabase)
+    # Database (direct PostgreSQL connection string)
     database_url: str = Field(
         ...,
-        validation_alias="SUPABASE_URL",
-        description="Constructed from SUPABASE_URL or DATABASE_URL",
+        validation_alias="DATABASE_URL",
+        description="PostgreSQL DSN used by asyncpg, migrations, and LangGraph",
     )
     supabase_url: str = Field(..., validation_alias="SUPABASE_URL")
     supabase_secret_key: SecretStr = Field(..., validation_alias="SUPABASE_SECRET_KEY")
     supabase_service_role_key: SecretStr = Field(..., validation_alias="SUPABASE_SERVICE_ROLE_KEY")
     supabase_publishable_key: str = Field(..., validation_alias="SUPABASE_PUBLISHABLE_KEY")
     supabase_jwks_url: str | None = Field(None, validation_alias="SUPABASE_JWKS_URL")
-
-    # Derive postgres connection string from Supabase URL
-    @property
-    def postgres_url(self) -> str:
-        """Construct PostgreSQL connection URL from Supabase URL."""
-        # Supabase URL format: https://PROJECT_ID.supabase.co
-        # Postgres URL format: postgresql://postgres:PASSWORD@db.PROJECT_ID.supabase.co:5432/postgres
-        project_id = self.supabase_url.replace("https://", "").replace(".supabase.co", "")
-        password = self.supabase_service_role_key.get_secret_value().replace("sb_secret_", "")
-        return f"postgresql://postgres.{project_id}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
 
     # LLM Provider
     llm_provider: Literal["openai", "gemini"] = "openai"
@@ -80,14 +70,20 @@ class Settings(BaseSettings):
     # MCP Services
     mcp_base_url: str = Field(..., validation_alias="MCP_BASE_URL")
     mcp_auth_token: SecretStr = Field(..., validation_alias="MCP_AUTH_TOKEN")
-    banking_mcp_url: str = Field(..., validation_alias="BANKING_MCP_URL")
-    banking_mcp_auth_token: SecretStr = Field(..., validation_alias="BANKING_MCP_AUTH_TOKEN")
-    fraud_mcp_url: str = Field(..., validation_alias="FRAUD_MCP_URL")
-    fraud_mcp_auth_token: SecretStr = Field(..., validation_alias="FRAUD_MCP_AUTH_TOKEN")
-    case_mcp_url: str = Field(..., validation_alias="CASE_MCP_URL")
-    case_mcp_auth_token: SecretStr = Field(..., validation_alias="CASE_MCP_AUTH_TOKEN")
     mcp_timeout: int = 60
     mcp_max_retries: int = 3
+
+    @property
+    def banking_mcp_url(self) -> str:
+        return f"{self.mcp_base_url.rstrip('/')}/mcp/banking"
+
+    @property
+    def fraud_mcp_url(self) -> str:
+        return f"{self.mcp_base_url.rstrip('/')}/mcp/fraud"
+
+    @property
+    def case_mcp_url(self) -> str:
+        return f"{self.mcp_base_url.rstrip('/')}/mcp/case"
 
     # Embeddings
     embedding_provider: Literal["openai"] = "openai"

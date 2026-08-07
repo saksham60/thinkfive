@@ -1,2 +1,8 @@
-# Add web-specific ignored files here
-.env
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example

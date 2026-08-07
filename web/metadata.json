@@ -1,0 +1,6 @@
+{
+  "name": "SentinelBank AI – Banking Query Resolution & Fraud Alert System",
+  "description": "Production-grade AI banking assistant, agentic LangGraph workflow orchestrator, fraud engine with risk analytics, MCP tool servers, PII masking, and human-in-the-loop analyst dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

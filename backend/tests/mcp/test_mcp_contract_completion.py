@@ -28,6 +28,7 @@ def test_database_url_and_mcp_base_url_are_direct() -> None:
             "LITELLM_API_KEY": "key",
             "MCP_BASE_URL": "https://mcp.example/",
             "MCP_AUTH_TOKEN": "token",
+            "CORS_ALLOWED_ORIGINS": "http://localhost:5173, https://thinkfive.vercel.app",
             "debug": False,
         }
     )
@@ -35,6 +36,8 @@ def test_database_url_and_mcp_base_url_are_direct() -> None:
     assert settings.banking_mcp_url == "https://mcp.example/mcp/banking"
     assert settings.fraud_mcp_url == "https://mcp.example/mcp/fraud"
     assert settings.case_mcp_url == "https://mcp.example/mcp/case"
+    assert settings.cors_origins == ["http://localhost:5173", "https://thinkfive.vercel.app"]
+    assert "*" not in settings.cors_origins
 
 
 def test_mcp_envelope_unwraps_business_data() -> None:

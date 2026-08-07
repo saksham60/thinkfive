@@ -1,8 +1,7 @@
-import { z } from 'zod';
-
-const schema = z.string().url().transform((value) => value.replace(/\/$/, ''));
 const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
-if (import.meta.env.PROD && !raw) throw new Error('VITE_API_BASE_URL is required in production');
+if (raw && !URL.canParse(raw)) throw new Error('VITE_API_BASE_URL must be an absolute URL when set');
 
-export const API_BASE_URL = schema.parse(raw || 'http://localhost:8000');
+// Empty means same-origin. Vercel and the Vite dev server proxy /api to Render,
+// which keeps the HttpOnly session cookie first-party in the browser.
+export const API_BASE_URL = raw?.replace(/\/$/, '') || '';

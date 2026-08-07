@@ -1,1 +1,18 @@
-import type{FraudAlert}from'@/features/alerts/types/alert.types';import type{CaseRecord}from'@/features/cases/types/case.types';import type{Approval}from'@/features/approvals/types/approval.types';import type{ChatMessage}from'@/features/chat/types/chat.types';export type ServerEvent={type:'alert.upserted';payload:FraudAlert}|{type:'case.upserted';payload:CaseRecord}|{type:'approval.upserted';payload:Approval}|{type:'chat.message';payload:ChatMessage};
+export interface ServerEvent {
+  type: string;
+  payload: Record<string, unknown>;
+  id?: string;
+}
+
+export const serverEventTypes = [
+  'connection.ready', 'heartbeat', 'chat.accepted', 'chat.completed', 'chat.failed',
+  'agent.started', 'agent.completed', 'agent.failed',
+  'agent.tool.started', 'agent.tool.completed', 'agent.tool.failed',
+  'assistant.delta', 'assistant.message',
+  'transaction.detected', 'transaction.assessed',
+  'fraud.assessment.created', 'fraud.alert.created', 'fraud.alert.updated',
+  'case.created', 'case.updated', 'case.note.added',
+  'approval.requested', 'approval.approved', 'approval.rejected',
+  'workflow.interrupted', 'workflow.resumed', 'card.state.updated',
+  'notification.created', 'system.warning',
+] as const;

@@ -14,7 +14,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   });
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => undefined);
-    const error: ApiError = { status: response.status, code: 'HTTP_ERROR', message: `Request failed (${response.status})`, details: payload };
+    const detail = typeof payload === 'object' && payload !== null && 'detail' in payload
+      ? (payload as { detail?: unknown }).detail
+      : undefined;
+    const error: ApiError = {
+      status: response.status,
+      code: 'HTTP_ERROR',
+      message: typeof detail === 'string' ? detail : `Request failed (${response.status})`,
+      details: payload,
+    };
     throw error;
   }
   if (response.status === 204) return undefined as T;

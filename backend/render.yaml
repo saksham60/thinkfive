@@ -13,6 +13,14 @@ services:
         value: 8000
       - key: WORKERS
         value: 1
+      - key: COOKIE_SECURE
+        value: true
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: CORS_ALLOWED_ORIGINS
+        value: http://localhost:5173,http://localhost:3000,https://thinkfive.vercel.app
+      - key: CORS_ALLOWED_ORIGIN_REGEX
+        value: https://thinkfive(?:-[a-z0-9-]+)?\.vercel\.app
       # Required direct PostgreSQL DSN. Render prompts for this secret when the
       # Blueprint is created; it cannot be derived from Supabase API keys.
       - key: DATABASE_URL

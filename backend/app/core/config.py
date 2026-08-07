@@ -38,7 +38,22 @@ class Settings(BaseSettings):
     session_cookie_name: str = "thinkfive_session"
     session_max_age: int = 86400  # 24 hours
     cookie_secure: bool = False  # Set true in production with HTTPS
-    cookie_samesite: str = "lax"
+    cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    # Browser clients. Credentialed requests cannot use a wildcard origin.
+    cors_allowed_origins: str = Field(
+        "http://localhost:5173,http://localhost:3000",
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
+    cors_allowed_origin_regex: str | None = Field(
+        None,
+        validation_alias="CORS_ALLOWED_ORIGIN_REGEX",
+    )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Return the configured, non-empty browser origins."""
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     # Database (direct PostgreSQL connection string)
     database_url: str = Field(

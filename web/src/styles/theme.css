@@ -36,6 +36,14 @@ body { transition: background-color .2s ease, color .2s ease; }
 :root[data-theme='light'] .badge.medium { color:#854d0e; background:#fef3c7; }
 :root[data-theme='light'] .secondary { color:#252b33; background:#e3e7eb; }
 :root[data-theme='light'] .login-card input { color:#18202a; background:#f8f9fa; border-color:#ccd2d9; }
+:root[data-theme='light'] .stack-form input,
+:root[data-theme='light'] .stack-form textarea,
+:root[data-theme='light'] .toolbar input,
+:root[data-theme='light'] .inline-form input { color:#18202a; background:#fff; border-color:#ccd2d9; }
+:root[data-theme='light'] .chat-panel { background:#fff; border-color:#dfe3e8; }
+:root[data-theme='light'] .chat-message { color:#18202a; background:#e9edf1; }
+:root[data-theme='light'] .chat-message.user { color:#fff; background:#9a3412; }
+:root[data-theme='light'] .tool-list code { background:#e9edf1; }
 :root[data-theme='light'] .flow article { background:#fff; border-color:#dfe3e8; }
 
 @media (max-width:760px) {

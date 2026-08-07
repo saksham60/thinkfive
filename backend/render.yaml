@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: thinkfive-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: starter
+    numInstances: 1
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: WORKERS
+        value: 1
+      - fromGroup: thinkfive-env
+
+    healthCheckPath: /health

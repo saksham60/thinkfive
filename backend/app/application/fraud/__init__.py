@@ -1,0 +1,1 @@
+"""Fraud application use cases."""

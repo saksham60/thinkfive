@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.observability.langsmith import llm_trace_config
+
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
 
@@ -56,7 +58,10 @@ async def synthesis_node(state: GraphState, config: RunnableConfig) -> dict[str,
     ]
 
     try:
-        response = await llm.ainvoke(messages)
+        response = await llm.ainvoke(
+            messages,
+            config=llm_trace_config("synthesis", "response", agent_config.get("version")),
+        )
 
         return {
             "final_response": response.final_response,

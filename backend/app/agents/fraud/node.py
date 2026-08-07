@@ -51,6 +51,7 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
             llm, output_llm, toolset, messages, agent_name="fraud",
             event_publisher=configurable.get("event_publisher"), run_id=state.get("run_id"),
             conversation_id=state.get("conversation_id"), customer_id=state.get("customer_id", ""),
+            prompt_version=agent_config.get("version"),
         )
         fraud_output = grounded.output
 

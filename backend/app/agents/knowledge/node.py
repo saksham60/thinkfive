@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langsmith import trace
+
+from app.observability.langsmith import llm_trace_config, trace_value
 
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
@@ -25,7 +28,33 @@ async def knowledge_node(state: GraphState, config: RunnableConfig) -> dict[str,
 
     # Retrieve first (tool call happens outside the LLM loop for determinism)
     rag_service = knowledge_agent.rag_service
-    retrieved = await rag_service.retrieve(current_goal, top_k=5)
+    with trace(
+        "tool.policy_search",
+        run_type="retriever",
+        inputs={"query": trace_value(current_goal), "top_k": 5},
+        tags=["thinkfive", "retriever", "agent:knowledge", "tool:policy_search"],
+        metadata={"agent": "knowledge", "tool": "policy_search", "transport": "local-rag"},
+    ) as retrieval_span:
+        retrieved = await rag_service.retrieve(current_goal, top_k=5)
+        retrieval_span.end(
+            outputs={
+                "documents": [
+                    {
+                        "page_content": trace_value(item.content),
+                        "type": "Document",
+                        "metadata": trace_value(
+                            {
+                                "document_id": item.document_id,
+                                "title": item.title,
+                                "version": item.version,
+                                "section": item.section,
+                            }
+                        ),
+                    }
+                    for item in retrieved
+                ]
+            }
+        )
 
     if not retrieved:
         chunks_summary = "(no relevant policy documents retrieved)"
@@ -46,7 +75,10 @@ async def knowledge_node(state: GraphState, config: RunnableConfig) -> dict[str,
     ]
 
     try:
-        response = await llm.ainvoke(messages)
+        response = await llm.ainvoke(
+            messages,
+            config=llm_trace_config("knowledge", "response", agent_config.get("version")),
+        )
 
         valid_document_ids = {str(item.document_id) for item in retrieved}
         citations = [

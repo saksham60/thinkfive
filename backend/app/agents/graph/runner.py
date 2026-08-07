@@ -60,6 +60,15 @@ class GraphRunner:
             run_id=run_id, customer_id=customer_id)
 
         config = {
+            "run_name": "thinkfive.chat",
+            "tags": ["thinkfive", "chat", "langgraph"],
+            "metadata": {
+                "run_id": str(run_id),
+                "conversation_id": str(conversation_id),
+                "customer_id": customer_id,
+                "thread_id": thread_id,
+                "operation": "start",
+            },
             "configurable": {
                 "thread_id": thread_id,
                 "customer_id": customer_id,
@@ -156,6 +165,15 @@ class GraphRunner:
     ) -> None:
         """Resume a graph paused at a HITL interrupt using Command(resume=...)."""
         config = {
+            "run_name": "thinkfive.chat.resume",
+            "tags": ["thinkfive", "chat", "langgraph", "hitl-resume"],
+            "metadata": {
+                "run_id": str(run_id),
+                "conversation_id": str(conversation_id),
+                "customer_id": customer_id,
+                "thread_id": thread_id,
+                "operation": "resume",
+            },
             "configurable": {
                 "thread_id": thread_id,
                 "customer_id": customer_id,

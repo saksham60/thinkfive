@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.observability.langsmith import llm_trace_config
+
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
 
@@ -71,7 +73,10 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
     ]
 
     try:
-        decision = await llm.ainvoke(prompt_messages)
+        decision = await llm.ainvoke(
+            prompt_messages,
+            config=llm_trace_config("supervisor", "routing", agent_config.get("version")),
+        )
 
         return {
             "next_agent": decision.next_agent,

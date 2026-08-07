@@ -9,8 +9,10 @@ from typing import Any
 from uuid import UUID
 
 from langchain_core.messages import BaseMessage, ToolMessage
+from langsmith import trace
 
 from app.core.constants import EventType
+from app.observability.langsmith import llm_trace_config, trace_messages, trace_value
 
 
 @dataclass
@@ -31,8 +33,55 @@ async def run_grounded_tool_loop(
     run_id: str | None = None,
     conversation_id: str | None = None,
     customer_id: str = "",
+    prompt_version: str | None = None,
 ) -> GroundedAgentResult:
     """Execute tool calls, return their data to the model, then request structured output."""
+    traced_agent_name = agent_name or "specialist"
+    with trace(
+        f"agent.{traced_agent_name}",
+        run_type="chain",
+        inputs={"messages": trace_messages(messages)},
+        tags=["thinkfive", "agent", f"agent:{traced_agent_name}"],
+        metadata={"agent": traced_agent_name, "prompt_version": prompt_version},
+    ) as agent_span:
+        result = await _execute_grounded_tool_loop(
+            tool_llm,
+            output_llm,
+            toolset,
+            messages,
+            max_rounds=max_rounds,
+            agent_name=agent_name,
+            event_publisher=event_publisher,
+            run_id=run_id,
+            conversation_id=conversation_id,
+            customer_id=customer_id,
+            prompt_version=prompt_version,
+        )
+        agent_span.end(
+            outputs={
+                "structured_output": trace_value(result.output),
+                "tools_fired": [item["tool"] for item in result.tool_results],
+                "tool_results": trace_value(result.tool_results),
+            }
+        )
+        return result
+
+
+async def _execute_grounded_tool_loop(
+    tool_llm: Any,
+    output_llm: Any,
+    toolset: Any,
+    messages: list[BaseMessage],
+    *,
+    max_rounds: int,
+    agent_name: str | None,
+    event_publisher: Any,
+    run_id: str | None,
+    conversation_id: str | None,
+    customer_id: str,
+    prompt_version: str | None,
+) -> GroundedAgentResult:
+    """Internal implementation kept below the named agent trace span."""
     loop_started = time.perf_counter()
     transcript = list(messages)
     evidence: list[dict[str, Any]] = []
@@ -44,7 +93,10 @@ async def run_grounded_tool_loop(
             run_id=UUID(run_id), customer_id=customer_id, agent_name=agent_name, status="started",
         )
     for _ in range(max_rounds):
-        response = await tool_llm.ainvoke(transcript)
+        response = await tool_llm.ainvoke(
+            transcript,
+            config=llm_trace_config(agent_name or "specialist", "tool_selection", prompt_version),
+        )
         transcript.append(response)
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
@@ -61,7 +113,16 @@ async def run_grounded_tool_loop(
                     agent_name=agent_name, tool_name=name, status="started",
                 )
             try:
-                result = await toolset.execute_tool(name, call.get("args") or {})
+                arguments = call.get("args") or {}
+                with trace(
+                    f"tool.{name}",
+                    run_type="tool",
+                    inputs={"arguments": trace_value(arguments)},
+                    tags=["thinkfive", "mcp-tool", f"agent:{agent_name or 'specialist'}", f"tool:{name}"],
+                    metadata={"agent": agent_name or "specialist", "tool": name, "transport": "mcp"},
+                ) as tool_span:
+                    result = await toolset.execute_tool(name, arguments)
+                    tool_span.end(outputs={"result": trace_value(result)})
             except Exception as exc:
                 duration_ms = (time.perf_counter() - started) * 1000
                 if event_publisher and run_id and conversation_id:
@@ -110,7 +171,10 @@ async def run_grounded_tool_loop(
     else:
         raise RuntimeError(f"Agent exceeded maximum tool rounds ({max_rounds})")
 
-    output = await output_llm.ainvoke(transcript)
+    output = await output_llm.ainvoke(
+        transcript,
+        config=llm_trace_config(agent_name or "specialist", "structured_output", prompt_version),
+    )
     if event_publisher and run_id and conversation_id:
         duration_ms = (time.perf_counter() - loop_started) * 1000
         await event_publisher.publish(

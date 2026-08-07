@@ -62,6 +62,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
             llm, output_llm, toolset, agent_messages, agent_name="banking",
             event_publisher=configurable.get("event_publisher"), run_id=state.get("run_id"),
             conversation_id=state.get("conversation_id"), customer_id=state.get("customer_id", ""),
+            prompt_version=agent_config.get("version"),
         )
         banking_output = grounded.output
 

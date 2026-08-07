@@ -95,6 +95,8 @@ async def test_grounded_loop_returns_tool_message_to_model() -> None:
 
     second_transcript = tool_llm.ainvoke.await_args_list[1].args[0]
     assert any(isinstance(message, ToolMessage) and "real-1" in message.content for message in second_transcript)
+    assert tool_llm.ainvoke.await_args_list[0].kwargs["config"]["run_name"] == "agent.specialist.tool_selection"
+    assert output_llm.ainvoke.await_args.kwargs["config"]["run_name"] == "agent.specialist.structured_output"
     assert result.tool_results[0]["data"]["accounts"][0]["account_id"] == "real-1"
 
 

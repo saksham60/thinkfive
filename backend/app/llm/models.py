@@ -1,6 +1,6 @@
 """LLM model configuration."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LLMConfig(BaseModel):
@@ -11,3 +11,4 @@ class LLMConfig(BaseModel):
     base_url: str | None = None
     temperature: float = 0.0
     max_tokens: int | None = None
+    default_headers: dict[str, str] = Field(default_factory=dict)

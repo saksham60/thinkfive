@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langsmith import trace
 
 from app.core.constants import EventType
@@ -171,8 +171,16 @@ async def _execute_grounded_tool_loop(
     else:
         raise RuntimeError(f"Agent exceeded maximum tool rounds ({max_rounds})")
 
+    # A completed tool-selection round can end with an assistant/model turn.
+    # Gemini rejects a new generation from a transcript that ends that way, so
+    # add an explicit, provider-neutral finalization turn for the schema-bound
+    # output model. This also makes the two-stage intent unambiguous.
+    output_transcript = [
+        *transcript,
+        HumanMessage(content="Using the evidence above, return the required structured output."),
+    ]
     output = await output_llm.ainvoke(
-        transcript,
+        output_transcript,
         config=llm_trace_config(agent_name or "specialist", "structured_output", prompt_version),
     )
     if event_publisher and run_id and conversation_id:

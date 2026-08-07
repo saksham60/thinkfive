@@ -19,5 +19,5 @@ class LLMProvider(Protocol):
 
     @property
     def provider_name(self) -> str:
-        """Get the provider name (openai, gemini)."""
+        """Get the provider name (litellm, gemini)."""
         ...

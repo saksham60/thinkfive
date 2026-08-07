@@ -13,6 +13,20 @@ services:
         value: 8000
       - key: WORKERS
         value: 1
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: EMBEDDING_PROVIDER
+        value: gemini
+      - key: GEMINI_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+      - key: GEMINI_EMBEDDING_MODEL
+        value: gemini-embedding-2
+      - key: EMBEDDING_DIMENSIONS
+        value: 1536
+      - key: GEMINI_API_KEY
+        sync: false
       - key: COOKIE_SECURE
         value: true
       - key: COOKIE_SAMESITE

@@ -67,15 +67,21 @@ class Settings(BaseSettings):
     supabase_publishable_key: str = Field(..., validation_alias="SUPABASE_PUBLISHABLE_KEY")
     supabase_jwks_url: str | None = Field(None, validation_alias="SUPABASE_JWKS_URL")
 
-    # LLM Provider
-    llm_provider: Literal["openai", "gemini"] = "openai"
-    openai_api_key: SecretStr = Field(..., validation_alias="OPENAI_API_KEY")
-    openai_base_url: str = Field(..., validation_alias="OPENAI_BASE_URL")
-    openai_model: str = Field("gemini-3-flash-preview", validation_alias="OPENAI_MODEL")
-    litellm_base_url: str = Field(..., validation_alias="LITELLM_BASE_URL")
-    litellm_api_key: SecretStr = Field(..., validation_alias="LITELLM_API_KEY")
+    # LLM providers. Chat and embeddings are selected independently so either
+    # can be moved between LiteLLM and Google without code changes.
+    llm_provider: Literal["litellm", "gemini", "openai"] = Field(
+        "litellm", validation_alias="LLM_PROVIDER"
+    )
+    litellm_base_url: str | None = Field(None, validation_alias="LITELLM_BASE_URL")
+    litellm_api_key: SecretStr | None = Field(None, validation_alias="LITELLM_API_KEY")
+    litellm_team_id: str | None = Field(None, validation_alias="LITELLM_TEAM_ID")
     litellm_model: str = Field("gemini-3-flash-preview", validation_alias="LITELLM_MODEL")
-    gemini_model: str = Field("gemini-3-flash-preview", validation_alias="GEMINI_MODEL")
+    gemini_api_key: SecretStr | None = Field(None, validation_alias="GEMINI_API_KEY")
+    gemini_base_url: str = Field(
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        validation_alias="GEMINI_BASE_URL",
+    )
+    gemini_model: str = Field("gemini-flash-latest", validation_alias="GEMINI_MODEL")
 
     # LangSmith Tracing
     langsmith_api_key: SecretStr | None = Field(None, validation_alias="LANGSMITH_API_KEY")
@@ -101,9 +107,16 @@ class Settings(BaseSettings):
         return f"{self.mcp_base_url.rstrip('/')}/mcp/case"
 
     # Embeddings
-    embedding_provider: Literal["openai"] = "openai"
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    embedding_provider: Literal["litellm", "gemini"] = Field(
+        "litellm", validation_alias="EMBEDDING_PROVIDER"
+    )
+    litellm_embedding_model: str = Field(
+        "text-embedding-3-small", validation_alias="LITELLM_EMBEDDING_MODEL"
+    )
+    gemini_embedding_model: str = Field(
+        "gemini-embedding-2", validation_alias="GEMINI_EMBEDDING_MODEL"
+    )
+    embedding_dimensions: int = Field(1536, validation_alias="EMBEDDING_DIMENSIONS")
 
     # Memory
     memory_summary_threshold: int = 20  # messages before summarization

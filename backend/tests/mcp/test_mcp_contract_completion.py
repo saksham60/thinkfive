@@ -22,8 +22,6 @@ def test_database_url_and_mcp_base_url_are_direct() -> None:
             "SUPABASE_SECRET_KEY": "secret",
             "SUPABASE_SERVICE_ROLE_KEY": "role",
             "SUPABASE_PUBLISHABLE_KEY": "public",
-            "OPENAI_API_KEY": "key",
-            "OPENAI_BASE_URL": "https://api.example",
             "LITELLM_BASE_URL": "https://litellm.example",
             "LITELLM_API_KEY": "key",
             "MCP_BASE_URL": "https://mcp.example/",
@@ -97,6 +95,9 @@ async def test_grounded_loop_returns_tool_message_to_model() -> None:
     assert any(isinstance(message, ToolMessage) and "real-1" in message.content for message in second_transcript)
     assert tool_llm.ainvoke.await_args_list[0].kwargs["config"]["run_name"] == "agent.specialist.tool_selection"
     assert output_llm.ainvoke.await_args.kwargs["config"]["run_name"] == "agent.specialist.structured_output"
+    output_transcript = output_llm.ainvoke.await_args.args[0]
+    assert isinstance(output_transcript[-1], HumanMessage)
+    assert "structured output" in output_transcript[-1].content
     assert result.tool_results[0]["data"]["accounts"][0]["account_id"] == "real-1"
 
 

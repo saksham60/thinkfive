@@ -120,6 +120,42 @@ python scripts/seed_demo_data.py
 uvicorn app.main:app --reload
 ```
 
+## LLM and embedding providers
+
+Chat and embeddings can be switched independently between Google Gemini and
+LiteLLM using environment variables. A provider change only requires a service
+restart; agent, MCP, database, and UI code do not change.
+
+Use Google directly:
+
+```env
+LLM_PROVIDER=gemini
+EMBEDDING_PROVIDER=gemini
+GEMINI_API_KEY=your-google-ai-studio-key
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+GEMINI_MODEL=gemini-flash-latest
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+EMBEDDING_DIMENSIONS=1536
+```
+
+Switch back to LiteLLM:
+
+```env
+LLM_PROVIDER=litellm
+EMBEDDING_PROVIDER=litellm
+LITELLM_BASE_URL=https://your-litellm-host/v1
+LITELLM_API_KEY=your-litellm-key
+LITELLM_TEAM_ID=your-team-id
+LITELLM_MODEL=your-chat-model
+LITELLM_EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+```
+
+Keep the embedding dimension at 1536 unless the pgvector schema is migrated.
+If an existing RAG index was created with a different embedding model, re-ingest
+its documents after changing `EMBEDDING_PROVIDER`; vectors from different models
+are not semantically interchangeable.
+
 ## API Endpoints
 
 ### Chat

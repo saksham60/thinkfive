@@ -1,0 +1,1 @@
+export interface AccountSummary{id:string;name:string;maskedNumber:string;balance:number;currency:string} export interface Transaction{id:string;description:string;amount:number;currency:string;occurredAt:string} export interface CustomerDashboard{accounts:AccountSummary[];recentTransactions:Transaction[]}

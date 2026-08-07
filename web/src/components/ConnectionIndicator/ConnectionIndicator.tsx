@@ -1,0 +1,1 @@
+import{useAppSelector}from'@/app/hooks';export function ConnectionIndicator(){const state=useAppSelector(s=>s.system.connection);return <span className={`connection ${state}`}><i/>{state.toUpperCase()}</span>}

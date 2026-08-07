@@ -1,0 +1,44 @@
+body { transition: background-color .2s ease, color .2s ease; }
+
+.sidebar-top { margin-bottom: 18px; }
+.sidebar-top .brand { padding-bottom: 14px; }
+.theme-toggle { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; padding:9px 11px; color:#d5d9e0; background:#181b20; border:1px solid #30343b; font-size:12px; }
+.theme-toggle:hover { background:#23272d; }
+.public-theme-toggle { position:absolute; top:20px; right:20px; }
+.public-theme-toggle .theme-toggle { width:auto; }
+
+:root[data-theme='light'] { color:#18202a; background:#f4f5f7; }
+:root[data-theme='light'] body { background:radial-gradient(circle at 80% 0,#fff4df 0,transparent 32%),#f4f5f7; }
+:root[data-theme='light'] .sidebar { background:#fff; border-color:#dfe3e8; }
+:root[data-theme='light'] .brand strong,
+:root[data-theme='light'] .user span { color:#18202a; }
+:root[data-theme='light'] .brand small,
+:root[data-theme='light'] .user small { color:#68717e; }
+:root[data-theme='light'] .sidebar nav a { color:#5d6672; }
+:root[data-theme='light'] .sidebar nav a:hover,
+:root[data-theme='light'] .sidebar nav a.active { color:#18202a; background:#f0f2f5; }
+:root[data-theme='light'] .sidebar footer { border-color:#dfe3e8; }
+:root[data-theme='light'] .theme-toggle { color:#333b46; background:#f4f5f7; border-color:#d9dde3; }
+:root[data-theme='light'] .theme-toggle:hover { background:#e8ebef; }
+:root[data-theme='light'] .card,
+:root[data-theme='light'] .list-row,
+:root[data-theme='light'] .state,
+:root[data-theme='light'] .login-card { color:#18202a; background:#fff; border-color:#dfe3e8; box-shadow:0 8px 28px rgb(29 37 49 / 6%); }
+:root[data-theme='light'] .page header>p:last-child,
+:root[data-theme='light'] .muted,
+:root[data-theme='light'] .card p,
+:root[data-theme='light'] .list-row p,
+:root[data-theme='light'] .card small,
+:root[data-theme='light'] .login-card>p:not(.eyebrow) { color:#68717e; }
+:root[data-theme='light'] .badge { color:#424b57; background:#e9edf1; }
+:root[data-theme='light'] .badge.high,
+:root[data-theme='light'] .badge.critical { color:#9a3412; background:#ffedd5; }
+:root[data-theme='light'] .badge.medium { color:#854d0e; background:#fef3c7; }
+:root[data-theme='light'] .secondary { color:#252b33; background:#e3e7eb; }
+:root[data-theme='light'] .login-card input { color:#18202a; background:#f8f9fa; border-color:#ccd2d9; }
+:root[data-theme='light'] .flow article { background:#fff; border-color:#dfe3e8; }
+
+@media (max-width:760px) {
+  .sidebar-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .sidebar-top .theme-toggle { width:auto; }
+}

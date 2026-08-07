@@ -1,0 +1,4 @@
+import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'; import type { FraudAlert } from '../types/alert.types'; import { fetchAlerts } from './alertsThunks'; import type { AsyncStatus } from '@/types/common.types';
+const adapter = createEntityAdapter<FraudAlert>({ sortComparer: (a,b) => b.createdAt.localeCompare(a.createdAt) });
+const initialState = adapter.getInitialState<{status:AsyncStatus;error:string|null}>({status:'idle',error:null});
+const slice=createSlice({name:'alerts',initialState,reducers:{alertUpserted:adapter.upsertOne},extraReducers:b=>{b.addCase(fetchAlerts.pending,s=>{s.status='loading'}).addCase(fetchAlerts.fulfilled,(s,a)=>{adapter.setAll(s,a.payload);s.status='succeeded'}).addCase(fetchAlerts.rejected,(s,a)=>{s.status='failed';s.error=a.error.message||'Unable to load alerts'})}}); export const {alertUpserted}=slice.actions; export default slice.reducer;

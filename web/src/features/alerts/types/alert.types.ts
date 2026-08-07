@@ -1,0 +1,1 @@
+export interface FraudAlert { id: string; title: string; description?: string; riskScore: number; severity: 'low'|'medium'|'high'|'critical'; status: 'open'|'investigating'|'resolved'; createdAt: string }

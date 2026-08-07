@@ -1,0 +1,2 @@
+import {createAsyncThunk} from '@reduxjs/toolkit'; import {apiRequest} from '@/api/client'; import {endpoints} from '@/api/endpoints'; import type {CaseRecord} from '../types/case.types';
+export const fetchCases=createAsyncThunk('cases/fetch',(_, {signal})=>apiRequest<CaseRecord[]>(endpoints.cases,{signal})); export const addCaseNote=createAsyncThunk('cases/addNote',({id,body}:{id:string;body:string})=>apiRequest<CaseRecord>(`${endpoints.cases}/${encodeURIComponent(id)}/notes`,{method:'POST',body:{body}}));

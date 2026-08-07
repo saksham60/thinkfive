@@ -1,0 +1,2 @@
+import { createSelector } from '@reduxjs/toolkit'; import type { RootState } from '@/app/store'; import { alertsAdapter } from './selectorsAdapter';
+export const alertsSelectors=alertsAdapter.getSelectors<RootState>(s=>s.alerts); export const selectActiveFraudAlerts=createSelector(alertsSelectors.selectAll,a=>a.filter(x=>x.status!=='resolved')); export const selectCriticalAlerts=createSelector(selectActiveFraudAlerts,a=>a.filter(x=>x.severity==='critical'));

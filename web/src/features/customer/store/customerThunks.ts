@@ -1,0 +1,1 @@
+import{createAsyncThunk}from'@reduxjs/toolkit';import{apiRequest}from'@/api/client';import{endpoints}from'@/api/endpoints';import type{CustomerDashboard}from'../types/customer.types';export const fetchCustomerDashboard=createAsyncThunk('customer/dashboard',(_, {signal})=>apiRequest<CustomerDashboard>(endpoints.customer.dashboard,{signal}));

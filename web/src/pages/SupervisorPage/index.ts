@@ -1,0 +1,1 @@
+export{SupervisorPage}from'./SupervisorPage';

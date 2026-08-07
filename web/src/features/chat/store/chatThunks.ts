@@ -1,0 +1,1 @@
+import{createAsyncThunk}from'@reduxjs/toolkit';import{apiRequest}from'@/api/client';import{endpoints}from'@/api/endpoints';import type{ChatResponse}from'../types/chat.types';export const submitChatMessage=createAsyncThunk('chat/submit',(input:{message:string;conversationId?:string})=>apiRequest<ChatResponse>(endpoints.chat,{method:'POST',body:input}));

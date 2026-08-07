@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -36,6 +36,24 @@ def test_database_url_and_mcp_base_url_are_direct() -> None:
     assert settings.case_mcp_url == "https://mcp.example/mcp/case"
     assert settings.cors_origins == ["http://localhost:5173", "https://thinkfive.vercel.app"]
     assert "*" not in settings.cors_origins
+
+
+@pytest.mark.parametrize(
+    "configured_url",
+    [
+        "https://mcp.example/mcp/banking",
+        "https://mcp.example/mcp/banking/",
+        "https://mcp.example/mcp/banking///",
+    ],
+)
+def test_mcp_client_uses_direct_trailing_slash_url(configured_url: str) -> None:
+    with patch("app.mcp.protocol.Client") as client_factory:
+        client = MCPClient(configured_url, "token")
+
+    assert client.base_url == "https://mcp.example/mcp/banking/"
+    client_factory.assert_called_once_with(
+        "https://mcp.example/mcp/banking/", auth="token"
+    )
 
 
 def test_mcp_envelope_unwraps_business_data() -> None:

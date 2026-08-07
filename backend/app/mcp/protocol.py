@@ -17,7 +17,7 @@ class MCPClient:
     """Long-lived FastMCP client for one deployed Streamable HTTP endpoint."""
 
     def __init__(self, base_url: str, auth_token: str, timeout: int = 60, max_retries: int = 3) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = f"{base_url.rstrip('/')}/"
         self.timeout = timeout
         self.max_retries = max_retries
         self._client = Client(self.base_url, auth=auth_token)

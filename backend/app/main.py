@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,17 +44,56 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Transaction monitor as a background asyncio task (not a separate process/service)
     monitor_task = None
+    monitor_status = {
+        "enabled": settings.monitor_enabled,
+        "running": False,
+        "interval_seconds": settings.monitor_interval_seconds,
+        "customer_ids": settings.monitor_customer_ids,
+        "last_started_at": None,
+        "last_completed_at": None,
+        "last_results": {},
+        "last_errors": {},
+    }
+    app.state.monitor_status = monitor_status
     if settings.monitor_enabled:
         import asyncio
 
         async def _monitor_loop() -> None:
-            while True:
-                for customer_id in settings.monitor_customer_ids:
-                    try:
-                        await container.monitor_transactions_use_case.execute(customer_id)
-                    except Exception as e:
-                        logger.error(f"Transaction monitor failed for {customer_id}: {e}")
-                await asyncio.sleep(settings.monitor_interval_seconds)
+            monitor_status["running"] = True
+            logger.info(
+                "Transaction monitor started: interval=%ss customers=%s",
+                settings.monitor_interval_seconds,
+                settings.monitor_customer_ids,
+            )
+            try:
+                while True:
+                    monitor_status["last_started_at"] = datetime.now(UTC).isoformat()
+                    cycle_results: dict[str, object] = {}
+                    cycle_errors: dict[str, str] = {}
+                    for customer_id in settings.monitor_customer_ids:
+                        try:
+                            cycle_results[customer_id] = (
+                                await container.monitor_transactions_use_case.execute(customer_id)
+                            )
+                        except Exception as exc:
+                            error_code = str(getattr(exc, "code", type(exc).__name__))
+                            cycle_errors[customer_id] = error_code
+                            logger.exception(
+                                "Transaction monitor failed for %s [%s]",
+                                customer_id,
+                                error_code,
+                            )
+                    monitor_status["last_results"] = cycle_results
+                    monitor_status["last_errors"] = cycle_errors
+                    monitor_status["last_completed_at"] = datetime.now(UTC).isoformat()
+                    logger.info(
+                        "Transaction monitor cycle complete: results=%s errors=%s",
+                        cycle_results,
+                        cycle_errors,
+                    )
+                    await asyncio.sleep(settings.monitor_interval_seconds)
+            finally:
+                monitor_status["running"] = False
 
         monitor_task = asyncio.create_task(_monitor_loop())
 
@@ -62,6 +102,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if monitor_task:
             monitor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await monitor_task
         await container.shutdown()
 
 

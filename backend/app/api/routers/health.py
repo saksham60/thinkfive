@@ -24,10 +24,12 @@ async def ready(request: Request) -> JSONResponse:
     db_healthy = await container.db.health_check()
     checkpoint_ready = container.checkpointer_factory._saver is not None
     mcp_ready = container.mcp_manager.initialized
+    monitor_status = getattr(request.app.state, "monitor_status", None)
     is_ready = db_healthy and checkpoint_ready and mcp_ready
     return JSONResponse({
         "status": "ready" if is_ready else "not_ready",
         "database": db_healthy,
         "checkpointer": checkpoint_ready,
         "mcp": mcp_ready,
+        "monitor": monitor_status,
     }, status_code=200 if is_ready else 503)

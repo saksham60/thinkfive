@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import Literal
 
@@ -138,9 +139,32 @@ class Settings(BaseSettings):
     rag_similarity_threshold: float = 0.7
 
     # Transaction Monitor
-    monitor_enabled: bool = True
-    monitor_interval_seconds: int = 300  # 5 minutes
-    monitor_customer_ids: list[str] = ["demo_customer_001"]
+    monitor_enabled: bool = Field(True, validation_alias="MONITOR_ENABLED")
+    monitor_interval_seconds: int = Field(
+        30, validation_alias="MONITOR_INTERVAL_SECONDS", ge=5
+    )
+    monitor_customer_ids_raw: str = Field(
+        '["demo_customer_001","demo_customer_002"]',
+        validation_alias="MONITOR_CUSTOMER_IDS",
+    )
+
+    @property
+    def monitor_customer_ids(self) -> list[str]:
+        """Accept Render's JSON-array format and a forgiving comma-separated fallback."""
+        raw = self.monitor_customer_ids_raw.strip()
+        values: list[str]
+        try:
+            decoded = json.loads(raw)
+            values = decoded if isinstance(decoded, list) else [str(decoded)]
+        except json.JSONDecodeError:
+            values = raw.split(",")
+
+        customer_ids = list(
+            dict.fromkeys(str(value).strip() for value in values if str(value).strip())
+        )
+        if not customer_ids:
+            raise ValueError("MONITOR_CUSTOMER_IDS must contain at least one customer ID")
+        return customer_ids
 
     # SSE
     sse_heartbeat_interval: int = 30  # seconds

@@ -25,6 +25,12 @@ services:
         value: gemini-embedding-2
       - key: EMBEDDING_DIMENSIONS
         value: 1536
+      - key: MONITOR_ENABLED
+        value: true
+      - key: MONITOR_INTERVAL_SECONDS
+        value: 30
+      - key: MONITOR_CUSTOMER_IDS
+        value: '["demo_customer_001","demo_customer_002"]'
       - key: GEMINI_API_KEY
         sync: false
       - key: COOKIE_SECURE

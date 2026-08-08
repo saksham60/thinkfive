@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.application.fraud.process_transaction import ProcessTransactionUseCase
@@ -33,7 +33,7 @@ class MonitorTransactionsUseCase:
 
     async def execute(self, customer_id: str) -> dict[str, int]:
         recent = await self.banking_adapter.get_recent_transactions(customer_id, limit=50)
-        transactions = recent.get("transactions", []) if isinstance(recent, dict) else []
+        transactions = self._transactions(recent)
 
         has_baseline = await self.processing_repo.has_baseline(customer_id)
 
@@ -57,3 +57,18 @@ class MonitorTransactionsUseCase:
                 assessed_count += 1
 
         return {"baseline_established": 0, "assessed": assessed_count}
+
+    @staticmethod
+    def _transactions(response: Any) -> list[dict[str, Any]]:
+        """Normalize current and legacy Banking MCP transaction response shapes."""
+        values = response
+        if isinstance(response, dict):
+            values = response.get(
+                "transactions",
+                response.get("results", response.get("data", [])),
+            )
+            if isinstance(values, dict):
+                values = values.get("transactions", values.get("results", []))
+        if not isinstance(values, list):
+            return []
+        return [value for value in values if isinstance(value, dict)]

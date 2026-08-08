@@ -28,6 +28,27 @@ async def test_proactive_monitor_still_processes_unseen_transactions() -> None:
     assert result == {"baseline_established": 0, "assessed": 1}
 
 
+async def test_proactive_monitor_accepts_direct_banking_mcp_list_shape() -> None:
+    banking_adapter = SimpleNamespace(
+        get_recent_transactions=AsyncMock(
+            return_value=[{"transaction_id": "new-supabase-id"}]
+        )
+    )
+    processing_repo = SimpleNamespace(has_baseline=AsyncMock(return_value=True))
+    process_transaction = SimpleNamespace(
+        execute=AsyncMock(return_value={"assessment": {"assessment_id": "assessment-2"}})
+    )
+
+    result = await MonitorTransactionsUseCase(
+        banking_adapter, processing_repo, process_transaction
+    ).execute("demo_customer_002")
+
+    process_transaction.execute.assert_awaited_once_with(
+        "demo_customer_002", "new-supabase-id"
+    )
+    assert result == {"baseline_established": 0, "assessed": 1}
+
+
 async def test_zero_history_first_pass_records_explicit_baseline() -> None:
     banking_adapter = SimpleNamespace(
         get_recent_transactions=AsyncMock(return_value={"transactions": []})

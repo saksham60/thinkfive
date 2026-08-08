@@ -10,6 +10,10 @@ class SseClientFactory {
     if (AppConfig.useFixtures) {
       return FixtureSseClient(conversationId);
     }
-    return SseClient(apiClient, AppConfig.apiBaseUrl + ApiEndpoints.sse(conversationId));
+    return SseClient(
+      apiClient,
+      AppConfig.apiBaseUrl + ApiEndpoints.sse(conversationId),
+      conversationId,
+    );
   }
 }

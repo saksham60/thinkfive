@@ -11,41 +11,49 @@ class ApiClient {
 
   Future<void> init() async {
     if (_initialized) return;
-    
+
     final dir = await getApplicationDocumentsDirectory();
     _cookieJar = PersistCookieJar(
       storage: FileStorage("${dir.path}/.cookies/"),
     );
 
-    _dio = Dio(BaseOptions(
-      baseUrl: AppConfig.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
-      validateStatus: (status) => status != null && status < 500, // Handle 400s manually if needed
-    ));
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: AppConfig.apiBaseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+        validateStatus: (status) => status != null && status < 400,
+      ),
+    );
 
     _dio.interceptors.add(CookieManager(_cookieJar));
-    
+
     // Add simple logger
-    _dio.interceptors.add(LogInterceptor(
-      request: true,
-      requestHeader: true,
-      requestBody: true,
-      responseHeader: false,
-      responseBody: false,
-      error: true,
-    ));
+    _dio.interceptors.add(
+      LogInterceptor(
+        request: true,
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: false,
+        responseBody: false,
+        error: true,
+      ),
+    );
 
     _initialized = true;
   }
 
   Dio get dio {
-    if (!_initialized) throw StateError("ApiClient must be initialized before use.");
+    if (!_initialized) {
+      throw StateError("ApiClient must be initialized before use.");
+    }
     return _dio;
   }
 
   PersistCookieJar get cookieJar {
-    if (!_initialized) throw StateError("ApiClient must be initialized before use.");
+    if (!_initialized) {
+      throw StateError("ApiClient must be initialized before use.");
+    }
     return _cookieJar;
   }
 }

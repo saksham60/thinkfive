@@ -15,7 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  
+
   @override
   void dispose() {
     _emailCtrl.dispose();
@@ -25,7 +25,9 @@ class _LoginPageState extends State<LoginPage> {
 
   void _login() {
     if (_formKey.currentState?.validate() == true) {
-      context.read<AuthBloc>().add(AuthLoginRequested(_emailCtrl.text, _passCtrl.text));
+      context.read<AuthBloc>().add(
+        AuthLoginRequested(_emailCtrl.text, _passCtrl.text),
+      );
     }
   }
 
@@ -63,23 +65,36 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(LucideIcons.shieldCheck, size: 48, color: AppColors.primary),
+                        const Icon(
+                          LucideIcons.shieldCheck,
+                          size: 48,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(height: 24),
                         const Text(
                           'ThinkFive',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'Secure Banking Portal',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
                         ),
                         const SizedBox(height: 32),
                         TextFormField(
                           controller: _emailCtrl,
-                          decoration: const InputDecoration(labelText: 'Email Address'),
+                          decoration: const InputDecoration(
+                            labelText: 'Email Address',
+                          ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) => v!.isEmpty ? 'Required' : null,
                           textInputAction: TextInputAction.next,
@@ -87,7 +102,9 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _passCtrl,
-                          decoration: const InputDecoration(labelText: 'Password'),
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
                           obscureText: true,
                           validator: (v) => v!.isEmpty ? 'Required' : null,
                           textInputAction: TextInputAction.done,
@@ -97,7 +114,9 @@ class _LoginPageState extends State<LoginPage> {
                         BlocBuilder<AuthBloc, AuthState>(
                           builder: (context, state) {
                             if (state is AuthLoading) {
-                              return const Center(child: CircularProgressIndicator());
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
                             }
                             return ElevatedButton(
                               onPressed: _login,
@@ -107,9 +126,12 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 24),
                         const Text(
-                          'Demo Note: Use priya@thinkfive.com / analyst@thinkfive.com',
+                          'Demo Note: Use demo@thinkfive.ai / analyst@thinkfive.ai',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),

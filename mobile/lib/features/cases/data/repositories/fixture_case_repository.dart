@@ -4,9 +4,13 @@ import '../../domain/entities/case_entity.dart';
 class FixtureCaseRepository implements CaseRepository {
   final _cases = [
     const CaseEntity(
-      id: 'c_1', type: 'FRAUD', priority: 'HIGH', status: 'INVESTIGATING',
-      alertId: 'a_1', transactionId: 't_1',
-    )
+      id: 'c_1',
+      type: 'FRAUD',
+      priority: 'HIGH',
+      status: 'INVESTIGATING',
+      alertId: 'a_1',
+      transactionId: 't_1',
+    ),
   ];
 
   @override
@@ -14,7 +18,7 @@ class FixtureCaseRepository implements CaseRepository {
     await Future.delayed(const Duration(milliseconds: 500));
     return _cases;
   }
-  
+
   @override
   Future<CaseEntity> getCaseDetail(String id) async {
     await Future.delayed(const Duration(milliseconds: 500));

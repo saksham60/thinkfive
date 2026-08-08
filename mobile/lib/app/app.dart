@@ -20,7 +20,8 @@ class _ThinkFiveAppState extends State<ThinkFiveApp> {
   @override
   void initState() {
     super.initState();
-    _authBloc = AuthBloc(Dependencies.authRepository)..add(AuthCheckRequested());
+    _authBloc = AuthBloc(Dependencies.authRepository)
+      ..add(AuthCheckRequested());
     _router = AppRouter.createRouter(_authBloc);
   }
 

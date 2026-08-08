@@ -14,7 +14,7 @@ class CustomerShell extends StatefulWidget {
 
 class _CustomerShellState extends State<CustomerShell> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _pages = const [
     CustomerHomePage(),
     AiAssistantPage(),
@@ -25,18 +25,21 @@ class _CustomerShellState extends State<CustomerShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
         items: const [
           BottomNavigationBarItem(icon: Icon(LucideIcons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(LucideIcons.bot), label: 'AI'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.bell), label: 'Alerts'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.briefcase), label: 'Cases'),
+          BottomNavigationBarItem(
+            icon: Icon(LucideIcons.bell),
+            label: 'Alerts',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(LucideIcons.briefcase),
+            label: 'Cases',
+          ),
         ],
       ),
     );

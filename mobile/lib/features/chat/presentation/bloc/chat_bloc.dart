@@ -5,6 +5,7 @@ import '../../domain/repositories/chat_repository.dart';
 import '../../../../core/sse/sse_client_factory.dart';
 import '../../../../core/sse/i_sse_client.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/sse/app_sse_event.dart';
 import '../../domain/entities/chat_message.dart';
 
 abstract class ChatEvent extends Equatable {
@@ -20,9 +21,8 @@ class SendMessage extends ChatEvent {
 }
 
 class _SseEventReceived extends ChatEvent {
-  final String eventType;
-  final String data;
-  _SseEventReceived(this.eventType, this.data);
+  final AppSseEvent sseEvent;
+  _SseEventReceived(this.sseEvent);
 }
 
 class _SseError extends ChatEvent {}
@@ -67,27 +67,46 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   ChatBloc(this._repository, this._apiClient) : super(const ChatState()) {
     on<SendMessage>(_onSendMessage);
     on<_SseEventReceived>(_onSseEventReceived);
-    on<_SseError>((event, emit) => emit(state.copyWith(error: 'Connection error')));
+    on<_SseError>(
+      (event, emit) => emit(state.copyWith(error: 'Connection error')),
+    );
   }
 
-  Future<void> _onSendMessage(SendMessage event, Emitter<ChatState> emit) async {
-    final userMsg = ChatMessage(id: DateTime.now().toString(), text: event.text, role: MessageRole.user);
+  Future<void> _onSendMessage(
+    SendMessage event,
+    Emitter<ChatState> emit,
+  ) async {
+    final userMsg = ChatMessage(
+      id: DateTime.now().toString(),
+      text: event.text,
+      role: MessageRole.user,
+    );
     final messages = List<ChatMessage>.from(state.messages)..add(userMsg);
     // clear error on new message
-    emit(ChatState(
-      messages: messages,
-      isLoading: true,
-      conversationId: state.conversationId,
-    ));
+    emit(
+      ChatState(
+        messages: messages,
+        isLoading: true,
+        conversationId: state.conversationId,
+      ),
+    );
 
     try {
-      final convId = await _repository.submitMessage(event.text, conversationId: state.conversationId);
+      final convId = await _repository.submitMessage(
+        event.text,
+        conversationId: state.conversationId,
+      );
       if (convId != state.conversationId) {
         emit(state.copyWith(conversationId: convId));
         _connectSse(convId);
       }
     } catch (e) {
-      emit(state.copyWith(isLoading: false, error: 'Failed to send message'));
+      String errMsg = 'Failed to send message';
+      if (e.toString().contains('403') || e.toString().contains('RBAC')) {
+        errMsg =
+            'Access Denied: You do not have permission to use the AI assistant.';
+      }
+      emit(state.copyWith(isLoading: false, error: errMsg));
     }
   }
 
@@ -98,61 +117,105 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _sseClient = SseClientFactory.create(_apiClient, conversationId);
     _sseSubscription = _sseClient!.stream.listen(
       (event) {
-        if (event.event != null) {
-          add(_SseEventReceived(event.event!, event.data));
-        }
+        add(_SseEventReceived(event));
       },
       onError: (err) {
         add(_SseError());
-      }
+      },
     );
   }
 
   void _onSseEventReceived(_SseEventReceived event, Emitter<ChatState> emit) {
     final messages = List<ChatMessage>.from(state.messages);
-    
-    if (event.eventType == 'agent_started' || event.eventType == 'tool_call') {
-      messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: event.data,
-        role: MessageRole.progress,
-      ));
-    } else if (event.eventType == 'final_response' || event.eventType == 'message') {
-      messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: event.data,
-        role: MessageRole.ai,
-      ));
-    } else if (event.eventType == 'fraud_assessment') {
-      messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: 'Fraud Assessment',
-        role: MessageRole.system,
-        payload: {'type': 'fraud_assessment', 'data': event.data},
-      ));
-    } else if (event.eventType == 'case_created') {
-       messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: 'Case Created',
-        role: MessageRole.system,
-        payload: {'type': 'case_created', 'data': event.data},
-      ));
-    } else if (event.eventType == 'waiting_for_human') {
-      messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: event.data,
-        role: MessageRole.system,
-        payload: {'type': 'waiting_for_human'},
-      ));
-    } else if (event.eventType == 'approval_result') {
-      messages.add(ChatMessage(
-        id: DateTime.now().toString(),
-        text: 'Action ${event.data}',
-        role: MessageRole.system,
-      ));
+    final sseEvent = event.sseEvent;
+
+    if (sseEvent is AgentStartedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Agent started: ${sseEvent.agentName}',
+          role: MessageRole.progress,
+        ),
+      );
+    } else if (sseEvent is ToolStartedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Using tool: ${sseEvent.toolName}',
+          role: MessageRole.progress,
+        ),
+      );
+    } else if (sseEvent is ChatCompletedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: sseEvent.response,
+          role: MessageRole.ai,
+        ),
+      );
+      emit(state.copyWith(messages: messages, isLoading: false));
+      return;
+    } else if (sseEvent is FraudAssessmentEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Fraud Assessment',
+          role: MessageRole.system,
+          payload: {'type': 'fraud_assessment', 'data': sseEvent.data},
+        ),
+      );
+    } else if (sseEvent is CaseCreatedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Case Created',
+          role: MessageRole.system,
+          payload: {'type': 'case_created', 'data': sseEvent.caseId},
+        ),
+      );
+    } else if (sseEvent is WorkflowInterruptedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'A human reviewer is required before this action can continue.',
+          role: MessageRole.system,
+          payload: {'type': 'waiting_for_human'},
+        ),
+      );
+    } else if (sseEvent is ApprovalResultEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Action ${sseEvent.result}',
+          role: MessageRole.system,
+        ),
+      );
+    } else if (sseEvent is ChatFailedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Error: ${sseEvent.error}',
+          role: MessageRole.system,
+        ),
+      );
+      emit(state.copyWith(messages: messages, isLoading: false));
+      return;
+    } else if (sseEvent is ApprovalRequestedEvent) {
+      messages.add(
+        ChatMessage(
+          id: sseEvent.id,
+          text: 'Approval Requested',
+          role: MessageRole.system,
+          payload: {
+            'type': 'approval_requested',
+            'approval_id': sseEvent.approvalId,
+            'case_id': sseEvent.caseId,
+          },
+        ),
+      );
     }
 
-    emit(state.copyWith(messages: messages, isLoading: false));
+    emit(state.copyWith(messages: messages));
   }
 
   @override

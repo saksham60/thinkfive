@@ -32,7 +32,7 @@ class AppTheme {
         titleTextStyle: AppTypography.titleLarge,
         iconTheme: IconThemeData(color: AppColors.primary),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -64,8 +64,12 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.primary),
         ),
-        hintStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        hintStyle: AppTypography.bodyMedium.copyWith(
+          color: AppColors.textSecondary,
+        ),
+        labelStyle: AppTypography.bodyMedium.copyWith(
+          color: AppColors.textSecondary,
+        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surfaceElevated,

@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'sse_event.dart';
+import 'app_sse_event.dart';
 
 abstract class ISseClient {
-  Stream<SseEvent> get stream;
+  Stream<AppSseEvent> get stream;
   void close();
 }

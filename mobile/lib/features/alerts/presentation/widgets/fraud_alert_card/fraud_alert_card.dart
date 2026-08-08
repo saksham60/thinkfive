@@ -18,18 +18,42 @@ class FraudAlertCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(LucideIcons.alertOctagon, color: AppColors.critical, size: 20),
+                const Icon(
+                  LucideIcons.alertOctagon,
+                  color: AppColors.critical,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('Security Alert', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
+                const Expanded(
+                  child: Text(
+                    'Security Alert',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
                 StatusBadge.critical(alert.severity),
               ],
             ),
             const SizedBox(height: 12),
-            Text('Risk Score: ${alert.riskScore}/100', style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+            Text(
+              'Risk Score: ${alert.riskScore}/100',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
             const SizedBox(height: 8),
             if (alert.reasons.isNotEmpty) ...[
-              Text(alert.reasons.first, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-            ]
+              Text(
+                alert.reasons.first,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ],
         ),
       ),

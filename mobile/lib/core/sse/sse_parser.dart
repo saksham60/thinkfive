@@ -12,10 +12,10 @@ class SseParser {
       // Events are separated by double newline \n\n or \r\n\r\n
       int doubleNewlineIndex = _buffer.indexOf('\n\n');
       int doubleRnIndex = _buffer.indexOf('\r\n\r\n');
-      
+
       int endIndex = -1;
       int separatorLen = 0;
-      
+
       if (doubleNewlineIndex != -1 && doubleRnIndex != -1) {
         if (doubleNewlineIndex < doubleRnIndex) {
           endIndex = doubleNewlineIndex;
@@ -39,7 +39,7 @@ class SseParser {
 
       final eventString = _buffer.substring(0, endIndex);
       _buffer = _buffer.substring(endIndex + separatorLen);
-      
+
       final parsedEvent = _parseEvent(eventString);
       if (parsedEvent != null) {
         events.add(parsedEvent);
@@ -51,7 +51,7 @@ class SseParser {
 
   SseEvent? _parseEvent(String eventString) {
     if (eventString.isEmpty) return null;
-    
+
     final lines = eventString.split(RegExp(r'\r?\n'));
     String? id;
     String? event;
@@ -73,10 +73,11 @@ class SseParser {
 
       final field = line.substring(0, colonIndex);
       // Skip leading space of value if present
-      final valueStartIndex = (colonIndex + 1 < line.length && line[colonIndex + 1] == ' ') 
-          ? colonIndex + 2 
+      final valueStartIndex =
+          (colonIndex + 1 < line.length && line[colonIndex + 1] == ' ')
+          ? colonIndex + 2
           : colonIndex + 1;
-      
+
       final value = line.substring(valueStartIndex);
 
       switch (field) {

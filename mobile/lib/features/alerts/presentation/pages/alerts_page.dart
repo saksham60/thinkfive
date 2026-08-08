@@ -1,61 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../app/di/dependencies.dart';
 import '../../../../core/widgets/app_loading/app_loading.dart';
 import '../../../../core/widgets/app_error/app_error.dart';
 import '../widgets/fraud_alert_card/fraud_alert_card.dart';
-import '../../domain/entities/fraud_alert.dart';
+import '../bloc/alerts_bloc.dart';
 
-class AlertsPage extends StatefulWidget {
+class AlertsPage extends StatelessWidget {
   const AlertsPage({super.key});
 
   @override
-  State<AlertsPage> createState() => _AlertsPageState();
-}
-
-class _AlertsPageState extends State<AlertsPage> {
-  late Future<List<FraudAlertEntity>> _alertsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  void _load() {
-    setState(() {
-      _alertsFuture = Dependencies.alertRepository.getAlerts();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Fraud Alerts')),
-      body: FutureBuilder<List<FraudAlertEntity>>(
-        future: _alertsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const AppLoading(message: 'Loading alerts...');
-          }
-          if (snapshot.hasError) {
-            return AppError(message: snapshot.error.toString(), onRetry: _load);
-          }
-          final alerts = snapshot.data ?? [];
-          if (alerts.isEmpty) {
-            return const Center(child: Text('No active alerts'));
-          }
-          return RefreshIndicator(
-            onRefresh: () async => _load(),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: alerts.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: FraudAlertCard(alert: alerts[i]),
+    return BlocProvider(
+      create: (context) =>
+          AlertsBloc(Dependencies.alertRepository)..add(LoadAlerts()),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Fraud Alerts')),
+        body: BlocBuilder<AlertsBloc, AlertsState>(
+          builder: (context, state) {
+            if (state.isLoading && state.alerts.isEmpty) {
+              return const AppLoading(message: 'Loading alerts...');
+            }
+            if (state.error != null && state.alerts.isEmpty) {
+              return AppError(
+                message: state.error!,
+                onRetry: () => context.read<AlertsBloc>().add(LoadAlerts()),
+              );
+            }
+            if (state.alerts.isEmpty) {
+              return const Center(child: Text('No active alerts'));
+            }
+            return RefreshIndicator(
+              onRefresh: () async {
+                context.read<AlertsBloc>().add(LoadAlerts());
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: state.alerts.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: InkWell(
+                    onTap: () =>
+                        context.push('/analyst/alerts/${state.alerts[i].id}'),
+                    child: FraudAlertCard(alert: state.alerts[i]),
+                  ),
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

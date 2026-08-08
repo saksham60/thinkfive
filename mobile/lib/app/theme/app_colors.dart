@@ -5,7 +5,7 @@ class AppColors {
   static const Color surface = Color(0xFF111419);
   static const Color surfaceElevated = Color(0xFF1A1D22);
   static const Color primary = Color(0xFFFB923C);
-  
+
   static const Color critical = Color(0xFFEF4444);
   static const Color criticalBg = Color(0xFF422006);
   static const Color criticalText = Color(0xFFFDBA74);

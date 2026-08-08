@@ -13,10 +13,26 @@ class StatusBadge extends StatelessWidget {
     required this.textColor,
   });
 
-  factory StatusBadge.success(String text) => StatusBadge(text: text, bgColor: AppColors.successBg, textColor: AppColors.successText);
-  factory StatusBadge.warning(String text) => StatusBadge(text: text, bgColor: AppColors.warningBg, textColor: AppColors.warningText);
-  factory StatusBadge.critical(String text) => StatusBadge(text: text, bgColor: AppColors.criticalBg, textColor: AppColors.criticalText);
-  factory StatusBadge.neutral(String text) => StatusBadge(text: text, bgColor: AppColors.border, textColor: AppColors.textPrimary);
+  factory StatusBadge.success(String text) => StatusBadge(
+    text: text,
+    bgColor: AppColors.successBg,
+    textColor: AppColors.successText,
+  );
+  factory StatusBadge.warning(String text) => StatusBadge(
+    text: text,
+    bgColor: AppColors.warningBg,
+    textColor: AppColors.warningText,
+  );
+  factory StatusBadge.critical(String text) => StatusBadge(
+    text: text,
+    bgColor: AppColors.criticalBg,
+    textColor: AppColors.criticalText,
+  );
+  factory StatusBadge.neutral(String text) => StatusBadge(
+    text: text,
+    bgColor: AppColors.border,
+    textColor: AppColors.textPrimary,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +44,12 @@ class StatusBadge extends StatelessWidget {
       ),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

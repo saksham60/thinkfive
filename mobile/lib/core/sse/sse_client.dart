@@ -1,39 +1,69 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/widgets.dart';
 import 'package:dio/dio.dart';
 import '../network/api_client.dart';
-import 'sse_event.dart';
+
 import 'sse_parser.dart';
 import 'i_sse_client.dart';
+import 'sse_cursor_store.dart';
+import 'app_sse_event.dart';
+import 'sse_payload_decoder.dart';
 
-class SseClient implements ISseClient {
+class SseClient with WidgetsBindingObserver implements ISseClient {
   final ApiClient _apiClient;
   final String _url;
-  
-  StreamController<SseEvent>? _controller;
+  final String _conversationId;
+  final SseCursorStore _cursorStore = SseCursorStore();
+
+  StreamController<AppSseEvent>? _controller;
   CancelToken? _cancelToken;
-  
-  String? _lastEventId;
+
   int _reconnectDelayMs = 1000;
   static const int _maxReconnectDelayMs = 15000;
   bool _isClosed = false;
+  bool _isInBackground = false;
 
-  SseClient(this._apiClient, this._url);
+  SseClient(this._apiClient, this._url, this._conversationId) {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
-  Stream<SseEvent> get stream {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _isInBackground = true;
+      _disconnect();
+    } else if (state == AppLifecycleState.resumed) {
+      _isInBackground = false;
+      if (!_isClosed) {
+        _connect();
+      }
+    }
+  }
+
+  @override
+  Stream<AppSseEvent> get stream {
     if (_controller == null || _controller!.isClosed) {
-      _controller = StreamController<SseEvent>.broadcast(
-        onListen: _connect,
+      _controller = StreamController<AppSseEvent>.broadcast(
+        onListen: () {
+          if (!_isInBackground) _connect();
+        },
         onCancel: close,
       );
     }
     return _controller!.stream;
   }
 
-  Future<void> _connect() async {
-    if (_isClosed) return;
+  void _disconnect() {
+    _cancelToken?.cancel('Background or reconnect');
+    _cancelToken = null;
+  }
 
+  Future<void> _connect() async {
+    if (_isClosed || _isInBackground) return;
+
+    _disconnect(); // ensure any previous is cancelled
     _cancelToken = CancelToken();
     final parser = SseParser();
 
@@ -42,87 +72,83 @@ class SseClient implements ISseClient {
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
       };
-      
-      if (_lastEventId != null) {
-        headers['Last-Event-ID'] = _lastEventId!;
-      }
+
+      String? lastEventId = await _cursorStore.getLastEventId(_conversationId);
+      headers['Last-Event-ID'] = lastEventId ?? '-1';
 
       final response = await _apiClient.dio.get<ResponseBody>(
         _url,
         options: Options(
           headers: headers,
           responseType: ResponseType.stream,
-          // Do not retry implicitly if 401
           validateStatus: (status) => status != null && status < 500,
         ),
         cancelToken: _cancelToken,
       );
 
       if (response.statusCode == 401 || response.statusCode == 403) {
-        _controller?.addError(DioException(
-          requestOptions: response.requestOptions,
-          response: Response(
+        _controller?.addError(
+          DioException(
             requestOptions: response.requestOptions,
-            statusCode: response.statusCode,
+            response: Response(
+              requestOptions: response.requestOptions,
+              statusCode: response.statusCode,
+            ),
+            type: DioExceptionType.badResponse,
           ),
-          type: DioExceptionType.badResponse,
-        ));
+        );
         close();
         return;
       }
 
-      // Reset delay on successful connection
       _reconnectDelayMs = 1000;
 
       final stream = response.data!.stream;
-      await for (final Uint8List chunk in stream) {
-        if (_isClosed) break;
-        final stringChunk = utf8.decode(chunk, allowMalformed: true);
+      await for (final String stringChunk in stream.cast<List<int>>().transform(
+        const Utf8Decoder(allowMalformed: true),
+      )) {
+        if (_isClosed || _cancelToken?.isCancelled == true) break;
+
         final events = parser.parseChunk(stringChunk);
-        
-        for (final event in events) {
-          if (event.id != null) {
-            _lastEventId = event.id;
-          }
-          if (event.retry != null) {
-             // We could update _reconnectDelayMs here if we wanted to respect the server's retry
+        for (final rawEvent in events) {
+          if (rawEvent.id != null) {
+            await _cursorStore.saveLastEventId(_conversationId, rawEvent.id!);
           }
           if (!_isClosed && _controller != null && !_controller!.isClosed) {
-            _controller?.add(event);
+            _controller?.add(SsePayloadDecoder.decode(rawEvent));
           }
         }
       }
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
-        // Deliberately closed
         return;
-      }
-      
-      if (!_isClosed && _controller != null && !_controller!.isClosed) {
-        // Pass error but reconnect
-        // _controller?.addError(e); 
       }
     }
 
-    if (!_isClosed) {
+    if (!_isClosed && !_isInBackground) {
       _scheduleReconnect();
     }
   }
 
   void _scheduleReconnect() {
-    if (_isClosed) return;
-    
+    if (_isClosed || _isInBackground) return;
+
     Future.delayed(Duration(milliseconds: _reconnectDelayMs), () {
-      if (!_isClosed) {
-        _reconnectDelayMs = (_reconnectDelayMs * 2).clamp(1000, _maxReconnectDelayMs);
+      if (!_isClosed && !_isInBackground) {
+        _reconnectDelayMs = (_reconnectDelayMs * 2).clamp(
+          1000,
+          _maxReconnectDelayMs,
+        );
         _connect();
       }
     });
   }
 
+  @override
   void close() {
     _isClosed = true;
-    _cancelToken?.cancel('SSE Client Closed');
+    WidgetsBinding.instance.removeObserver(this);
+    _disconnect();
     _controller?.close();
   }
 }

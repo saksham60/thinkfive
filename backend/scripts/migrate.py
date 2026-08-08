@@ -49,6 +49,7 @@ async def apply_migration(conn: asyncpg.Connection, migration_file: Path) -> Non
     """Apply a single migration file."""
     migration_id = migration_file.stem
     content = migration_file.read_text()
+    checksum = get_migration_checksum(content)
 
     logger.info(f"Applying migration: {migration_id}")
 
@@ -56,6 +57,22 @@ async def apply_migration(conn: asyncpg.Connection, migration_file: Path) -> Non
         async with conn.transaction():
             # Execute migration SQL
             await conn.execute(content)
+            # Older migrations recorded themselves, while newer migrations rely
+            # on the runner. Make the runner authoritative so every successful
+            # migration is remembered and cannot rerun on every Render restart.
+            await conn.execute(
+                """
+                INSERT INTO backend_schema_migrations
+                    (migration_id, applied_at, checksum, description)
+                VALUES ($1, NOW(), $2, $3)
+                ON CONFLICT (migration_id) DO UPDATE
+                    SET checksum = EXCLUDED.checksum,
+                        description = EXCLUDED.description
+                """,
+                migration_id,
+                checksum,
+                migration_id.replace("_", " "),
+            )
 
         logger.info(f"✓ Migration {migration_id} applied successfully")
 

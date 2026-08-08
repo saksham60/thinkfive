@@ -8,8 +8,13 @@ DO $$
 BEGIN
     IF to_regclass('public.banking_transactions') IS NOT NULL THEN
         INSERT INTO transaction_processing_state (customer_id, transaction_id, metadata)
-        SELECT customer_id, transaction_id, '{"reason":"existing_history_baseline"}'::jsonb
-        FROM banking_transactions
+        SELECT bt.customer_id, bt.transaction_id, '{"reason":"existing_history_baseline"}'::jsonb
+        FROM banking_transactions bt
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM transaction_monitor_state monitor
+            WHERE monitor.customer_id = bt.customer_id
+        )
         ON CONFLICT (customer_id, transaction_id) DO NOTHING;
 
         INSERT INTO transaction_monitor_state (customer_id, baseline_established_at, metadata)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -29,7 +29,15 @@ async def list_alerts(
     AuthorizationPolicy.assert_customer_access(user.role, user.customer_id, target_customer_id)
 
     result = await container.fraud_adapter.get_fraud_alerts(target_customer_id)
-    return AlertListResponse(alerts=result.get("alerts", []) if isinstance(result, dict) else [])
+    alerts: list[dict[str, Any]] = []
+    if isinstance(result, dict):
+        candidate = result.get("results", result.get("alerts", []))
+        if isinstance(candidate, list):
+            alerts = candidate
+    elif isinstance(result, list):
+        alerts = result
+
+    return AlertListResponse(alerts=alerts)
 
 
 @router.get("/{alert_id}")

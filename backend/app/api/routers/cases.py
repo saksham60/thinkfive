@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -32,7 +32,15 @@ async def list_cases(
         target = user.customer_id
 
     result = await container.case_adapter.search_cases(customer_id=target)
-    return CaseListResponse(cases=result.get("cases", []) if isinstance(result, dict) else [])
+    cases: list[dict[str, Any]] = []
+    if isinstance(result, list):
+        cases = result
+    elif isinstance(result, dict):
+        candidate = result.get("cases", result.get("results", []))
+        if isinstance(candidate, list):
+            cases = candidate
+
+    return CaseListResponse(cases=cases)
 
 
 @router.get("/{case_id}")

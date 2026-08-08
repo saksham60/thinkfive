@@ -49,10 +49,12 @@ class GraphRunner:
         customer_id: str,
         message: str,
         runtime_context: dict[str, Any],
+        message_id: UUID | str | None = None,
         requested_transaction_id: str | None = None,
         conversation_messages: list[Any] | None = None,
         conversation_summary: str | None = None,
         memory_context: dict[str, Any] | None = None,
+        checkpoint_exists: bool | None = None,
     ) -> None:
         """Start a new graph run (called from a background task after chat.accepted)."""
         await self.agent_run_repo.update_status(run_id, RunStatus.RUNNING)
@@ -79,16 +81,31 @@ class GraphRunner:
             "recursion_limit": self.max_iterations * 4,
         }
 
+        if checkpoint_exists is None:
+            checkpoint_exists = await self.has_checkpoint(thread_id)
+
+        stable_message_id = str(message_id) if message_id else f"user:{run_id}"
+
         history: list[BaseMessage] = []
-        if conversation_summary:
-            history.append(SystemMessage(content=f"Conversation summary: {conversation_summary}"))
-        for item in conversation_messages or []:
-            if item.role == "user":
-                history.append(HumanMessage(content=item.content))
-            elif item.role == "assistant":
-                history.append(AIMessage(content=item.content))
-        if not history or not isinstance(history[-1], HumanMessage) or history[-1].content != message:
-            history.append(HumanMessage(content=message))
+        if not checkpoint_exists:
+            if conversation_summary:
+                history.append(
+                    SystemMessage(
+                        content=f"Conversation summary: {conversation_summary}",
+                        id=f"summary:{conversation_id}",
+                    )
+                )
+            for item in conversation_messages or []:
+                item_id = str(getattr(item, "message_id", ""))
+                if item_id == stable_message_id:
+                    continue
+                if item.role == "user":
+                    history.append(HumanMessage(content=item.content, id=item_id or None))
+                elif item.role == "assistant":
+                    history.append(AIMessage(content=item.content, id=item_id or None))
+        # Existing checkpoints already contain their transcript. Append exactly the
+        # newly persisted user message; stable IDs make retries idempotent.
+        history.append(HumanMessage(content=message, id=stable_message_id))
 
         initial_state = {
             "messages": history,
@@ -99,12 +116,24 @@ class GraphRunner:
             # A browser-supplied ID is only an untrusted lookup hint. Banking
             # must validate it before active_transaction_id can be populated.
             "requested_transaction_id": requested_transaction_id,
-            "active_transaction_id": None,
+            "current_goal": "",
+            "primary_user_goal": "",
             "memory_context": memory_context or {},
             "iteration_count": 0,
             "warnings": [],
             "errors": [],
+            "final_response": None,
         }
+        if not checkpoint_exists:
+            initial_state.update(
+                {
+                    "active_transaction_id": None,
+                    "active_transaction": None,
+                    "recent_transaction_candidates": [],
+                    "pending_confirmation": None,
+                    "conversation_summary": conversation_summary,
+                }
+            )
 
         try:
             result = await self.graph.ainvoke(initial_state, config=config)
@@ -158,6 +187,19 @@ class GraphRunner:
                  "customer_id": customer_id, "error": str(e)},
                 run_id=run_id, customer_id=customer_id,
             )
+
+    async def has_checkpoint(self, thread_id: str) -> bool:
+        """Return whether LangGraph already owns conversation state for this thread."""
+        try:
+            snapshot = await self.graph.aget_state(
+                {"configurable": {"thread_id": thread_id}}
+            )
+            return bool(getattr(snapshot, "values", None))
+        except Exception as exc:
+            # A checkpoint read failure must not drop the customer message. The
+            # invocation remains recoverable from the bounded database transcript.
+            logger.warning("Could not inspect checkpoint for thread %s: %s", thread_id, exc)
+            return False
 
     async def resume_run(
         self,

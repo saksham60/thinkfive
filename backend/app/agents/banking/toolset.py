@@ -100,7 +100,7 @@ class BankingToolset:
                 "type": "function",
                 "function": {
                     "name": "sync_transactions",
-                    "description": "Synchronize transaction data from Plaid.",
+                    "description": "Synchronize transaction data from the configured banking provider.",
                     "parameters": {
                         "type": "object",
                         "properties": {},

@@ -27,6 +27,12 @@ def _build_evidence_bundle(state: GraphState) -> str:
 
     if state.get("active_transaction_id"):
         bundle["active_transaction_id"] = state["active_transaction_id"]
+    if state.get("active_transaction"):
+        bundle["active_transaction"] = state["active_transaction"]
+    if state.get("recent_transaction_candidates"):
+        bundle["recent_transaction_candidates_in_display_order"] = state[
+            "recent_transaction_candidates"
+        ]
     if state.get("active_alert_id"):
         bundle["active_alert_id"] = state["active_alert_id"]
     if state.get("active_case_id"):
@@ -35,6 +41,20 @@ def _build_evidence_bundle(state: GraphState) -> str:
         bundle["active_approval_id"] = state["active_approval_id"]
     if state.get("pending_human_action"):
         bundle["pending_human_action"] = state["pending_human_action"]
+    if state.get("pending_confirmation"):
+        bundle["pending_confirmation"] = state["pending_confirmation"]
+    if state.get("primary_user_goal"):
+        bundle["primary_user_goal"] = state["primary_user_goal"]
+    if state.get("conversation_summary"):
+        bundle["conversation_summary"] = state["conversation_summary"]
+    recent_turns: list[dict[str, Any]] = []
+    for message in state.get("messages", [])[-8:]:
+        role = getattr(message, "type", None)
+        content = getattr(message, "content", None)
+        if role in {"human", "ai"} and content:
+            recent_turns.append({"role": role, "content": content})
+    if recent_turns:
+        bundle["bounded_conversation"] = recent_turns
     if state.get("memory_context"):
         bundle["customer_memory_non_authoritative"] = state["memory_context"]
 
@@ -56,7 +76,12 @@ async def synthesis_node(state: GraphState, config: RunnableConfig) -> dict[str,
 
     messages = [
         SystemMessage(content=prompt),
-        HumanMessage(content="Produce the final customer-facing response grounded strictly in the evidence above."),
+        HumanMessage(
+            content=(
+                "Respond to the latest customer turn using the bounded conversation and grounded "
+                "evidence above. Preserve conversational continuity."
+            )
+        ),
     ]
 
     try:
@@ -67,7 +92,12 @@ async def synthesis_node(state: GraphState, config: RunnableConfig) -> dict[str,
 
         return {
             "final_response": response.final_response,
-            "messages": [AIMessage(content=response.final_response)],
+            "messages": [
+                AIMessage(
+                    content=response.final_response,
+                    id=f"assistant:{state.get('run_id', 'unknown')}",
+                )
+            ],
             "warnings": state.get("warnings", []) + response.warnings,
         }
 
@@ -76,6 +106,8 @@ async def synthesis_node(state: GraphState, config: RunnableConfig) -> dict[str,
         fallback = "I'm sorry, I encountered an issue completing your request. Please try again or contact support."
         return {
             "final_response": fallback,
-            "messages": [AIMessage(content=fallback)],
+            "messages": [
+                AIMessage(content=fallback, id=f"assistant:{state.get('run_id', 'unknown')}")
+            ],
             "errors": state.get("errors", []) + [f"Synthesis Agent failed: {str(e)}"],
         }

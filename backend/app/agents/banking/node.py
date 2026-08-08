@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langsmith import trace
 
 from app.agents.tool_loop import run_grounded_tool_loop
+from app.observability.langsmith import trace_value
 
 if TYPE_CHECKING:
     from app.agents.graph.state import GraphState
@@ -17,6 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TRANSACTION_TOOLS = frozenset({"get_transaction", "get_recent_transactions", "search_transactions"})
+_MAX_RECENT_TRANSACTION_CANDIDATES = 20
 
 
 def _transaction_ids(value: Any) -> set[str]:
@@ -80,6 +83,61 @@ def _transaction_resolution_status(
     return "ambiguous" if len(candidate_ids) > 1 else "unresolved"
 
 
+def _transaction_rows(value: Any) -> list[dict[str, Any]]:
+    """Return ordered transaction rows from normalized Banking MCP responses."""
+    if isinstance(value, list):
+        return [row for row in value if isinstance(row, dict) and row.get("transaction_id")]
+    if not isinstance(value, dict):
+        return []
+    if value.get("transaction_id"):
+        return [value]
+    for key in ("transactions", "data", "results"):
+        nested = value.get(key)
+        rows = _transaction_rows(nested)
+        if rows:
+            return rows
+    return []
+
+
+def transaction_candidates(tool_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map displayed order to real IDs without relying on model prose."""
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for result in tool_results:
+        if result.get("tool") not in _TRANSACTION_TOOLS:
+            continue
+        for row in _transaction_rows(result.get("data")):
+            transaction_id = str(row["transaction_id"])
+            if transaction_id in seen:
+                continue
+            seen.add(transaction_id)
+            candidates.append(
+                {
+                    "position": len(candidates) + 1,
+                    "transaction_id": transaction_id,
+                    "merchant_name": row.get("merchant_name") or row.get("merchant"),
+                    "description": (
+                        row.get("description")
+                        or row.get("transaction_name")
+                        or row.get("name")
+                    ),
+                    "amount": row.get("amount"),
+                    "currency": (
+                        row.get("currency")
+                        or row.get("iso_currency_code")
+                        or row.get("currency_code")
+                    ),
+                    "transaction_date": (
+                        row.get("transaction_date") or row.get("date") or row.get("authorized_date")
+                    ),
+                    "account_id": row.get("account_id"),
+                }
+            )
+            if len(candidates) >= _MAX_RECENT_TRANSACTION_CANDIDATES:
+                return candidates
+    return candidates
+
+
 async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Banking Agent node - retrieves banking data.
 
@@ -124,9 +182,17 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
     validated_transaction_id: str | None = None
     if requested_transaction_id:
         try:
-            validated_transaction = await toolset.execute_tool(
-                "get_transaction", {"transaction_id": requested_transaction_id}
-            )
+            with trace(
+                "tool.get_transaction",
+                run_type="tool",
+                inputs={"transaction_id": requested_transaction_id},
+                tags=["thinkfive", "mcp-tool", "agent:banking", "tool:get_transaction"],
+                metadata={"agent": "banking", "tool": "get_transaction", "transport": "mcp"},
+            ) as tool_span:
+                validated_transaction = await toolset.execute_tool(
+                    "get_transaction", {"transaction_id": requested_transaction_id}
+                )
+                tool_span.end(outputs={"result": trace_value(validated_transaction)})
             validation_results.append(
                 {
                     "tool": "get_transaction",
@@ -144,6 +210,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
             warning = "The requested transaction was not validated for this customer by Banking MCP."
             return {
                 "banking_evidence": {
+                    "run_id": state.get("run_id"),
                     "goal_completed": False,
                     "evidence": validation_results,
                     "findings": warning,
@@ -157,6 +224,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
                         "Please select a transaction that is visible in your current transaction history."
                     ),
                 },
+                "requested_transaction_id": None,
                 "warnings": state.get("warnings", []) + [warning],
             }
 
@@ -169,6 +237,41 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
                 )
             )
         )
+
+        # Exact-ID validation is already a complete, authoritative Banking MCP
+        # lookup. Avoid two redundant model calls (tool selection + output schema)
+        # before the Supervisor can continue to fraud or synthesis.
+        validated_candidates = transaction_candidates(validation_results)
+        existing_candidates = state.get("recent_transaction_candidates", [])
+        candidates = existing_candidates or validated_candidates
+        active_transaction = next(
+            (
+                candidate
+                for candidate in candidates
+                if candidate.get("transaction_id") == validated_transaction_id
+            ),
+            validated_candidates[0] if validated_candidates else None,
+        )
+        return {
+            "banking_evidence": {
+                "run_id": state.get("run_id"),
+                "goal_completed": True,
+                "evidence": validation_results,
+                "findings": "The selected transaction was validated for this customer.",
+                "warnings": [],
+                "attempt_status": "completed",
+                "transaction_lookup_attempted": True,
+                "transaction_resolution_status": "resolved",
+                "resolved_transaction_id": validated_transaction_id,
+                "requires_clarification": False,
+                "clarification_question": None,
+            },
+            "active_transaction_id": validated_transaction_id,
+            "active_transaction": active_transaction,
+            "recent_transaction_candidates": candidates,
+            "requested_transaction_id": None,
+            "pending_confirmation": None,
+        }
 
     try:
         # Invoke agent with tool calling
@@ -185,10 +288,20 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
             tool_results, requested_transaction_id
         )
         resolution_status = _transaction_resolution_status(tool_results, resolved_transaction_id)
+        candidates = transaction_candidates(tool_results)
+        active_transaction = next(
+            (
+                candidate
+                for candidate in candidates
+                if candidate["transaction_id"] == resolved_transaction_id
+            ),
+            None,
+        )
 
         if banking_output:
             # Update state with banking evidence
             banking_evidence = {
+                "run_id": state.get("run_id"),
                 "goal_completed": banking_output.goal_completed,
                 "evidence": tool_results,
                 "findings": banking_output.findings,
@@ -203,15 +316,20 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
 
             update: dict[str, Any] = {
                 "banking_evidence": banking_evidence,
+                "recent_transaction_candidates": candidates,
+                "requested_transaction_id": None,
                 "warnings": state.get("warnings", []) + banking_output.warnings,
             }
             if resolved_transaction_id:
                 update["active_transaction_id"] = resolved_transaction_id
+                update["active_transaction"] = active_transaction
+                update["pending_confirmation"] = None
             return update
         else:
             logger.warning("No structured output from Banking Agent")
             update = {
                 "banking_evidence": {
+                    "run_id": state.get("run_id"),
                     "goal_completed": False,
                     "evidence": tool_results,
                     "findings": "Banking Agent did not return structured output.",
@@ -223,10 +341,13 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
                     ),
                     "resolved_transaction_id": validated_transaction_id,
                 },
+                "recent_transaction_candidates": candidates,
+                "requested_transaction_id": None,
                 "warnings": state.get("warnings", []) + ["Banking Agent did not return structured output"]
             }
             if validated_transaction_id:
                 update["active_transaction_id"] = validated_transaction_id
+                update["active_transaction"] = active_transaction
             return update
 
     except Exception as e:
@@ -234,6 +355,7 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
         failure = f"Banking Agent failed: {str(e)}"
         update = {
             "banking_evidence": {
+                "run_id": state.get("run_id"),
                 "goal_completed": False,
                 "evidence": validation_results,
                 "findings": failure,
@@ -247,6 +369,8 @@ async def banking_node(state: GraphState, config: RunnableConfig) -> dict[str, A
             },
             "errors": state.get("errors", []) + [f"Banking Agent failed: {str(e)}"],
         }
+        if requested_transaction_id:
+            update["requested_transaction_id"] = None
         if validated_transaction_id:
             update["active_transaction_id"] = validated_transaction_id
         return update

@@ -91,19 +91,32 @@ class SubmitMessageUseCase:
 
         runtime_context = self.runtime_context_factory(customer_id)
 
-        # Bounded conversation context plus durable customer memory. Live MCP
-        # results remain authoritative and are collected later by specialists.
-        all_messages = await self.conversation_repo.get_messages(conversation.conversation_id)
-        summary = await self.memory_service.maybe_summarize(
-            conversation.conversation_id,
-            customer_id,
-            all_messages,
-            self.graph_runner.summary_threshold,
+        # LangGraph owns live conversational state after the first turn. Querying
+        # and rehydrating the database transcript on every turn both duplicated
+        # messages in the checkpoint and increased latency. The bounded database
+        # history is now used only to create/recover a checkpoint.
+        has_checkpoint = getattr(self.graph_runner, "has_checkpoint", None)
+        checkpoint_exists = (
+            await has_checkpoint(thread_id) if callable(has_checkpoint) else False
         )
-        if summary is None:
-            stored_summary = await self.memory_service.memory_repo.get_summary(conversation.conversation_id)
-            summary = stored_summary.summary if stored_summary else None
-        recent_messages = all_messages[-self.graph_runner.recent_message_limit :]
+        recent_messages: list[Any] = []
+        summary: str | None = None
+        if not checkpoint_exists:
+            all_messages = await self.conversation_repo.get_messages(
+                conversation.conversation_id
+            )
+            summary = await self.memory_service.maybe_summarize(
+                conversation.conversation_id,
+                customer_id,
+                all_messages,
+                self.graph_runner.summary_threshold,
+            )
+            if summary is None:
+                stored_summary = await self.memory_service.memory_repo.get_summary(
+                    conversation.conversation_id
+                )
+                summary = stored_summary.summary if stored_summary else None
+            recent_messages = all_messages[-self.graph_runner.recent_message_limit :]
         memory_context = await self.memory_service.get_memory_context(customer_id)
 
         # Fire-and-forget background execution; SSE carries all further progress.
@@ -114,11 +127,13 @@ class SubmitMessageUseCase:
                 thread_id=thread_id,
                 customer_id=customer_id,
                 message=message,
+                message_id=saved_message.message_id,
                 requested_transaction_id=transaction_id,
                 runtime_context=runtime_context,
                 conversation_messages=recent_messages,
                 conversation_summary=summary,
                 memory_context=memory_context,
+                checkpoint_exists=checkpoint_exists,
             )
         )
 

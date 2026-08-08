@@ -287,7 +287,8 @@ async def test_supervisor_prevents_repeating_failed_banking_route() -> None:
     )
 
     assert result["next_agent"] == "synthesis"
-    assert result["pending_human_action"]["type"] == "clarification"
+    assert result["pending_confirmation"]["type"] == "transaction_details"
+    assert "pending_human_action" not in result
     assert "Repeated unresolved Banking route prevented" in result["warnings"]
 
 

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CustomerProfileResponse(BaseModel):
@@ -17,4 +17,5 @@ class DashboardResponse(BaseModel):
     recent_transactions: Any = None
     fraud_alerts: Any = None
     cases: Any = None
-    cards: list[Any] = []
+    cards: list[Any] = Field(default_factory=list)
+    degraded_services: list[str] = Field(default_factory=list)

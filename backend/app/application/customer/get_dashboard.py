@@ -44,6 +44,22 @@ class GetDashboardUseCase:
         )
 
         account_summary, transactions, alerts, cases = results
+        dependency_results = {
+            "banking.account_summary": account_summary,
+            "banking.recent_transactions": transactions,
+            "fraud.alerts": alerts,
+            "case.cases": cases,
+        }
+        degraded_services = [
+            name for name, result in dependency_results.items() if isinstance(result, Exception)
+        ]
+        for name in degraded_services:
+            logger.error(
+                "Dashboard dependency %s failed for customer %s: %s",
+                name,
+                customer_id,
+                dependency_results[name],
+            )
 
         card_statuses = []
         for card in cards:
@@ -64,4 +80,5 @@ class GetDashboardUseCase:
             "fraud_alerts": alerts if not isinstance(alerts, Exception) else None,
             "cases": cases if not isinstance(cases, Exception) else None,
             "cards": card_statuses,
+            "degraded_services": degraded_services,
         }

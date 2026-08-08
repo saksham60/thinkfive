@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -70,6 +71,57 @@ def test_mcp_failure_envelope_raises_typed_error() -> None:
         )
     assert raised.value.code == "ASSESSMENT_BELOW_ALERT_THRESHOLD"
     assert raised.value.retryable is False
+
+
+async def test_mcp_client_reconnects_once_after_upstream_session_404() -> None:
+    stale_client = MagicMock()
+    stale_client.__aenter__ = AsyncMock(return_value=stale_client)
+    stale_client.__aexit__ = AsyncMock()
+    stale_client.ping = AsyncMock()
+    stale_client.call_tool = AsyncMock(side_effect=RuntimeError("Client error '404 Not Found'"))
+
+    replacement_client = MagicMock()
+    replacement_client.__aenter__ = AsyncMock(return_value=replacement_client)
+    replacement_client.__aexit__ = AsyncMock()
+    replacement_client.ping = AsyncMock()
+    replacement_client.call_tool = AsyncMock(
+        return_value=SimpleNamespace(
+            is_error=False,
+            data={"success": True, "data": {"accounts": [{"account_id": "account-1"}]}},
+        )
+    )
+
+    with patch(
+        "app.mcp.protocol.Client", side_effect=[stale_client, replacement_client]
+    ) as client_factory:
+        client = MCPClient("https://mcp.example/mcp/banking", "token")
+        await client.initialize()
+        result = await client.call_tool("get_accounts", {"customer_id": "customer-1"})
+
+    assert result == {"accounts": [{"account_id": "account-1"}]}
+    assert client.initialized is True
+    assert client_factory.call_count == 2
+    stale_client.__aexit__.assert_awaited_once()
+    replacement_client.ping.assert_awaited_once()
+    replacement_client.call_tool.assert_awaited_once_with(
+        "get_accounts", {"customer_id": "customer-1"}, timeout=60.0
+    )
+
+
+async def test_mcp_client_does_not_reconnect_for_non_session_failures() -> None:
+    transport = MagicMock()
+    transport.__aenter__ = AsyncMock(return_value=transport)
+    transport.__aexit__ = AsyncMock()
+    transport.ping = AsyncMock()
+    transport.call_tool = AsyncMock(side_effect=RuntimeError("401 Unauthorized"))
+
+    with patch("app.mcp.protocol.Client", return_value=transport) as client_factory:
+        client = MCPClient("https://mcp.example/mcp/banking", "wrong-token")
+        await client.initialize()
+        with pytest.raises(MCPError, match="401 Unauthorized"):
+            await client.call_tool("get_accounts", {"customer_id": "customer-1"})
+
+    client_factory.assert_called_once()
 
 
 async def test_corrected_fraud_and_case_contract_arguments() -> None:

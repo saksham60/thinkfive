@@ -52,17 +52,22 @@ def create_app(
     case_config = case_settings or CaseSettings()
     configure_logging(root_settings.log_level)
 
-    banking: BankingContainer = create_banking_container(bank_config, plaid)
-    local_banking = LocalBankingDataProvider(banking)
-    local_case_banking = LocalCaseBankingDataProvider(local_banking)
-
     if force_memory:
         fraud_config = fraud_config.model_copy(update={"fraud_repository_backend": "memory", "mcp_provider_mode": "local"})
         case_config = case_config.model_copy(update={"repository_backend": "memory", "mcp_provider_mode": "local"})
 
     shared_supabase = supabase_client
-    if not force_memory and (fraud_config.fraud_repository_backend == "supabase" or case_config.repository_backend == "supabase"):
+    supabase_required = (
+        bank_config.banking_data_provider == "supabase"
+        or fraud_config.fraud_repository_backend == "supabase"
+        or case_config.repository_backend == "supabase"
+    )
+    if not force_memory and supabase_required:
         shared_supabase = shared_supabase or _new_supabase_client(case_config)
+
+    banking: BankingContainer = create_banking_container(bank_config, plaid, supabase_client=shared_supabase)
+    local_banking = LocalBankingDataProvider(banking)
+    local_case_banking = LocalCaseBankingDataProvider(local_banking)
 
     fraud: FraudContainer = create_fraud_container(
         fraud_config,
@@ -93,7 +98,7 @@ def create_app(
             await stack.enter_async_context(case_http.lifespan(app))
             if root_settings.auto_migrate:
                 await asyncio.to_thread(apply_all_migrations, case_config)
-            if bank_config.plaid_auto_bootstrap:
+            if bank_config.banking_data_provider == "plaid" and bank_config.plaid_auto_bootstrap and banking.bootstrap is not None:
                 await banking.bootstrap.bootstrap()
             if case_config.case_auto_seed:
                 await case.cards.upsert(CardState(card_id="card_demo_001", customer_id=bank_config.plaid_default_customer_id, updated_by="combined_startup"))
@@ -116,6 +121,7 @@ def create_app(
     app.state.case_server = case_server
     app.state.supabase = shared_supabase
     app.state.provider_mode = root_settings.provider_mode
+    app.state.banking_data_provider = bank_config.banking_data_provider
     app.include_router(create_webhook_router(banking))
     app.mount("/mcp/banking", BearerTokenMiddleware(banking_http, root_settings.auth_token))
     app.mount("/mcp/fraud", BearerTokenMiddleware(fraud_http, root_settings.auth_token))
@@ -130,8 +136,13 @@ def create_app(
         checks: dict[str, Any] = {
             "authentication": {"configured": bool(root_settings.auth_token)},
             "banking": {
-                "configured": bool(bank_config.plaid_client_id.get_secret_value() and bank_config.plaid_secret.get_secret_value()),
-                "repository": "memory_with_sandbox_recovery",
+                "configured": (
+                    shared_supabase is not None
+                    if bank_config.banking_data_provider == "supabase"
+                    else bool(bank_config.plaid_client_id.get_secret_value() and bank_config.plaid_secret.get_secret_value())
+                ),
+                "provider": bank_config.banking_data_provider,
+                "repository": "supabase" if bank_config.banking_data_provider == "supabase" else "memory_with_sandbox_recovery",
             },
             "fraud": {
                 "provider": root_settings.provider_mode,
@@ -147,8 +158,20 @@ def create_app(
             ready_state = ready_state and shared_supabase is not None
             if ready_state:
                 try:
-                    await asyncio.to_thread(lambda: shared_supabase.table("fraud_assessments").select("assessment_id").limit(1).execute())
-                    await asyncio.to_thread(lambda: shared_supabase.table("cases").select("case_id").limit(1).execute())
+                    if bank_config.banking_data_provider == "supabase":
+                        for table, column in (
+                            ("banking_accounts", "account_id"),
+                            ("banking_transactions", "transaction_id"),
+                            ("banking_connections", "customer_id"),
+                        ):
+                            def query_table(table: str = table, column: str = column) -> Any:
+                                return shared_supabase.table(table).select(column).limit(1).execute()
+
+                            await asyncio.to_thread(query_table)
+                    if fraud_config.fraud_repository_backend == "supabase":
+                        await asyncio.to_thread(lambda: shared_supabase.table("fraud_assessments").select("assessment_id").limit(1).execute())
+                    if case_config.repository_backend == "supabase":
+                        await asyncio.to_thread(lambda: shared_supabase.table("cases").select("case_id").limit(1).execute())
                     checks["supabase"] = "reachable"
                 except Exception:
                     ready_state = False

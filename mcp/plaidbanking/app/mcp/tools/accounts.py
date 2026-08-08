@@ -10,7 +10,7 @@ from .common import tool_response
 
 
 def register_account_tools(mcp: FastMCP, container: Container) -> None:
-    source = f"plaid_{container.settings.plaid_env}"
+    source = container.source
 
     @mcp.tool(
         description="Retrieve the customer's linked banking accounts and current balance information. Use when account names, types, masks, or balances are needed."
@@ -31,7 +31,7 @@ def register_account_tools(mcp: FastMCP, container: Container) -> None:
         return await tool_response(customer_id, source, lambda: container.banking.get_account_balance(customer_id, account_id))
 
     @mcp.tool(
-        description="Inspect safe Plaid Item connection health, enabled products, and transaction synchronization freshness. This never returns Plaid access credentials."
+        description="Inspect safe banking-provider connection health and transaction freshness without returning credentials."
     )
     async def get_banking_connection_status(customer_id: str) -> dict[str, Any]:
         return await tool_response(customer_id, source, lambda: container.banking.connection_status(customer_id))

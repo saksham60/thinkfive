@@ -1,10 +1,10 @@
-# Plaid Banking MCP
+# ThinkFive Banking MCP
 
-Plaid Banking MCP is the banking-data boundary for an AI-assisted customer-query and fraud-alert platform. It exposes typed, agent-friendly Plaid capabilities over MCP Streamable HTTP while keeping Plaid access credentials, sync cursors, and provider details on the server.
+ThinkFive Banking MCP is the provider-neutral banking-data boundary for an AI-assisted customer-query and fraud-alert platform. It exposes stable typed tools over MCP Streamable HTTP while keeping provider credentials and persistence details on the server.
 
-> Plaid Banking MCP provides access to banking data. It does not determine whether a transaction is fraudulent.
+> Banking MCP provides access to banking data. It does not determine whether a transaction is fraudulent.
 
-> Plaid Banking MCP does not perform card issuer operations such as freezing or blocking cards.
+> Banking MCP does not perform card issuer operations such as freezing or blocking cards.
 
 > Transaction search operates over the MCP's synchronized TransactionRepository. It is not represented as a native Plaid arbitrary transaction-search API.
 
@@ -13,9 +13,10 @@ Plaid Banking MCP is the banking-data boundary for an AI-assisted customer-query
 ```text
 Supervisor Agent
       |
-      +-- Plaid Banking MCP --> Plaid (this project)
-      +-- Fraud MCP ---------> Risk engine (future)
-      `-- Case MCP ----------> Supabase (future)
+      +-- Banking MCP --> Supabase canonical store (live demo)
+      |               `-> Plaid (optional compatibility mode)
+      +-- Fraud MCP --> same canonical banking evidence
+      `-- Case MCP ---> Supabase workflow data
 ```
 
 Standalone Phase 1:
@@ -90,8 +91,11 @@ Local configuration is loaded from `mcp/.env`; an optional `mcp/plaidbanking/.en
 
 | Variable | Required | Default | Purpose |
 |---|---:|---|---|
-| `PLAID_CLIENT_ID` | yes | — | Plaid client identifier |
-| `PLAID_SECRET` | yes | — | Plaid environment secret |
+| `BANKING_DATA_PROVIDER` | no | `plaid` | Select `plaid` or `supabase` |
+| `SUPABASE_URL` | Supabase mode | — | Canonical Supabase project URL |
+| `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` | Supabase mode | — | Server-only data key; never expose to browsers |
+| `PLAID_CLIENT_ID` | Plaid mode | — | Plaid client identifier |
+| `PLAID_SECRET` | Plaid mode | — | Plaid environment secret |
 | `PLAID_ENV` | yes | `sandbox` | `sandbox`, `development`, or `production` |
 | `PLAID_WEBHOOK_URL` | no | — | Public Plaid webhook URL |
 | `MCP_AUTH_TOKEN` | no | — | Opaque bearer token protecting only the MCP route |
@@ -107,7 +111,7 @@ Pydantic validates configuration before startup. Secret values use `SecretStr`, 
 
 ## Sandbox bootstrap
 
-When `PLAID_AUTO_BOOTSTRAP=true`, startup creates `demo_customer_001` with `user_transactions_dynamic` at `ins_109508`, exchanges the public token, and stores the access token only in `ItemRepository`. Bootstrap is idempotent for the life of a repository instance.
+Plaid bootstrap runs only when `BANKING_DATA_PROVIDER=plaid` and `PLAID_AUTO_BOOTSTRAP=true`. Supabase mode creates no Plaid client, performs no token exchange, and makes no Plaid runtime call.
 
 Manual bootstrap:
 
@@ -115,13 +119,13 @@ Manual bootstrap:
 python scripts/bootstrap_sandbox.py
 ```
 
-The Phase 1 repository is in memory, so container restarts intentionally lose Item and transaction state. A durable `SupabaseItemRepository` is required for cross-restart idempotency and production multi-worker deployment.
+In Supabase mode, accounts, connections, and transactions are durable across restarts. Simulation inserts only a canonical transaction row and intentionally does not mutate account balances.
 
 ## Repository design
 
 `ItemRepository` maps an application `customer_id` to the server-only Plaid access token and Item ID. Tools and callers never accept or return an access token. `InMemoryItemRepository` also maintains the reverse Item-to-customer lookup required by webhooks.
 
-`TransactionRepository` owns current synchronized state and partitions every operation by customer. `apply_changes()` atomically applies added/modified upserts and removals. `InMemoryTransactionRepository` can later be replaced by `SupabaseTransactionRepository` without changing models, service contracts, MCP tools, or supervisor prompts.
+`TransactionRepository` owns current transaction state and partitions every operation by customer. `SupabaseTransactionRepository` queries individual transactions with both `customer_id` and `transaction_id` without changing models, service contracts, MCP tools, or supervisor prompts.
 
 `SyncStateRepository` owns the internal cursor, last sync time, status, stale flag, and one lock per customer. Customers synchronize independently.
 
@@ -241,8 +245,8 @@ The image runs as a non-root user and starts `uvicorn app.main:create_app --fact
 
 1. Push this repository without either `.env` file.
 2. In Render, create a Blueprint using `mcp/plaidbanking/render.yaml`, or create a Docker Web Service with root directory `mcp/plaidbanking`. The Blueprint already sets this root directory.
-3. Set secret values for `PLAID_CLIENT_ID` and `PLAID_SECRET` in Render.
-4. Keep `PLAID_ENV=sandbox` for Phase 1 and set `PLAID_WEBHOOK_URL=https://<service>.onrender.com/webhooks/plaid` if webhook delivery is required.
+3. For the live demo set `BANKING_DATA_PROVIDER=supabase`, `PLAID_AUTO_BOOTSTRAP=false`, `SUPABASE_URL`, and a server-only Supabase secret key.
+4. Plaid credentials and webhook configuration are required only when explicitly switching back to `BANKING_DATA_PROVIDER=plaid`.
 5. Optionally set `MCP_AUTH_TOKEN` and supply it to MCP clients as a bearer token.
 6. Deploy and verify `/health`, `/ready`, and `/mcp/`.
 
@@ -253,7 +257,7 @@ Standalone endpoints:
 - Readiness: `https://<service>/ready`
 - Plaid webhook: `https://<service>/webhooks/plaid`
 
-The future combined MCP endpoint is `https://<service>/mcp/banking/`.
+The combined MCP endpoint is `https://<service>/mcp/banking/`.
 
 ## Product availability and boundaries
 

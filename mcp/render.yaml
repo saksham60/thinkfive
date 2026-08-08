@@ -7,18 +7,12 @@ services:
     dockerContext: .
     healthCheckPath: /ready
     envVars:
-      - key: PLAID_CLIENT_ID
-        sync: false
-      - key: PLAID_SECRET
-        sync: false
-      - key: PLAID_ENV
-        value: sandbox
+      - key: BANKING_DATA_PROVIDER
+        value: supabase
       - key: PLAID_AUTO_BOOTSTRAP
-        value: "true"
+        value: "false"
       - key: PLAID_DEFAULT_CUSTOMER_ID
         value: demo_customer_001
-      - key: PLAID_INSTITUTION_ID
-        value: ins_109508
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SECRET_KEY

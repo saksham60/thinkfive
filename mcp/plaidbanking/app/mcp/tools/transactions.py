@@ -13,10 +13,10 @@ from .common import tool_response
 
 
 def register_transaction_tools(mcp: FastMCP, container: Container) -> None:
-    source = f"plaid_{container.settings.plaid_env}"
+    source = container.source
 
     @mcp.tool(
-        description="Synchronize the customer's local transaction repository from Plaid using the internal cursor. Use to force an immediate refresh of added, modified, and removed transactions."
+        description="Synchronize the customer's transaction repository with its configured banking provider."
     )
     async def sync_transactions(customer_id: str) -> dict[str, Any]:
         return await tool_response(customer_id, source, lambda: container.transaction_service.sync(customer_id))
@@ -67,7 +67,7 @@ def register_transaction_tools(mcp: FastMCP, container: Container) -> None:
         return await tool_response(customer_id, source, run)
 
     @mcp.tool(
-        description="Ask Plaid to refresh transaction data, then mark local data stale. Use when the latest institution data is needed; results arrive asynchronously and require synchronization."
+        description="Request a transaction refresh from the configured banking provider when that capability is available."
     )
     async def refresh_transactions(customer_id: str) -> dict[str, Any]:
         return await tool_response(customer_id, source, lambda: container.transaction_service.refresh(customer_id))

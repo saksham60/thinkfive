@@ -43,6 +43,7 @@ class MonitorTransactionsUseCase:
                 txn_id = txn.get("transaction_id")
                 if txn_id:
                     await self.processing_repo.mark_processed(customer_id, txn_id)
+            await self.processing_repo.mark_baseline_established(customer_id, transaction_count=len(transactions))
             logger.info(f"Baseline established for {customer_id}: {len(transactions)} transactions")
             return {"baseline_established": len(transactions), "assessed": 0}
 

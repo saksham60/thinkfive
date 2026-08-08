@@ -10,10 +10,10 @@ from .common import tool_response
 
 
 def register_liability_tools(mcp: FastMCP, container: Container) -> None:
-    source = f"plaid_{container.settings.plaid_env}"
+    source = container.source
 
     @mcp.tool(
-        description="Retrieve available credit-card, mortgage, and student-loan liabilities from Plaid. Returns capability_available=false when the product is not enabled."
+        description="Retrieve liabilities when supported by the configured banking provider; otherwise returns capability_available=false."
     )
     async def get_liabilities(customer_id: str) -> dict[str, Any]:
         return await tool_response(customer_id, source, lambda: container.banking.get_liabilities(customer_id))

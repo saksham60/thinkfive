@@ -133,8 +133,8 @@ async def test_simulator_retry_is_bounded_and_never_fabricates_transaction() -> 
         "synchronized": False,
         "transaction": None,
         "message": (
-            "Transaction was accepted by Plaid Sandbox but has not materialized "
-            "in transaction sync yet."
+            "Transaction was accepted by the banking provider but has not materialized "
+            "in the canonical transaction store yet."
         ),
     }
 

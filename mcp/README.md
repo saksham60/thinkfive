@@ -11,7 +11,7 @@ The platform is deployed at:
 Verified public status endpoints:
 
 - [Health](https://thinkfive-mcp-stack.onrender.com/health) - process and module liveness
-- [Readiness](https://thinkfive-mcp-stack.onrender.com/ready) - authentication, Plaid configuration, provider mode, and Supabase availability
+- [Readiness](https://thinkfive-mcp-stack.onrender.com/ready) - authentication, selected banking provider, and required Supabase tables
 
 Production MCP endpoints:
 
@@ -29,14 +29,14 @@ https://thinkfive-mcp-stack.onrender.com/webhooks/plaid
 
 ## Routes
 
-- `/mcp/banking` - Plaid banking evidence
+- `/mcp/banking` - provider-neutral banking evidence (Supabase for the live demo)
 - `/mcp/fraud` - deterministic, explainable fraud analysis
 - `/mcp/case` - persistent workflow and human approval
 - `/webhooks/plaid` - verified Plaid webhooks
 - `/health` - process liveness
 - `/ready` - authentication and dependency readiness
 
-The combined app uses direct in-process providers. `BANKING_MCP_URL`, `BANKING_MCP_AUTH_TOKEN`, `FRAUD_MCP_URL`, and `FRAUD_MCP_AUTH_TOKEN` must remain blank when `MCP_PROVIDER_MODE=local`.
+The combined app uses direct in-process providers. `BANKING_MCP_URL`, `BANKING_MCP_AUTH_TOKEN`, `FRAUD_MCP_URL`, and `FRAUD_MCP_AUTH_TOKEN` must remain blank when `MCP_PROVIDER_MODE=local`. `BANKING_DATA_PROVIDER=supabase` makes the canonical Banking store Supabase and removes every Plaid runtime call; `plaid` remains the code default for backward compatibility.
 
 ## Connecting an agent
 
@@ -101,7 +101,7 @@ asyncio.run(main())
 
 Recommended supervisor flow:
 
-1. Banking: sync transactions and retrieve the target transaction.
+1. Banking: retrieve the target transaction from the canonical provider (`sync_transactions` is an immediate no-op in Supabase mode).
 2. Fraud: assess the transaction and create an alert when the score meets the configured threshold.
 3. Case: create a case from the alert, investigate, and request approval.
 4. A human reviewer approves or rejects the sensitive action.
@@ -111,21 +111,21 @@ Recommended supervisor flow:
 
 ### Banking MCP - 15 tools
 
-- `get_customer_identity` - retrieve Plaid identity evidence for a customer.
-- `verify_customer_identity` - compare supplied identity claims with Plaid evidence.
+- `get_customer_identity` - retrieve identity evidence when supported (capability-unavailable in Supabase mode).
+- `verify_customer_identity` - compare supplied identity claims when supported.
 - `get_accounts` - list the customer's linked accounts and balances.
 - `get_account_summary` - return a bounded summary across linked accounts.
 - `get_account_balance` - retrieve balance details for one account.
-- `get_banking_connection_status` - inspect the customer's Plaid connection and sync state.
-- `sync_transactions` - synchronize transaction changes from Plaid.
+- `get_banking_connection_status` - inspect the customer's configured provider and connection state.
+- `sync_transactions` - synchronize provider changes; deterministic no-op for the canonical Supabase store.
 - `get_recent_transactions` - return bounded recent customer transactions.
 - `get_transaction` - retrieve one customer-scoped transaction.
 - `search_transactions` - search transactions using structured filters.
-- `refresh_transactions` - ask Plaid Sandbox to refresh transaction data.
+- `refresh_transactions` - request a provider refresh when supported.
 - `get_liabilities` - retrieve supported liability information.
-- `simulate_transaction` - create a synthetic Plaid Sandbox transaction.
-- `fire_transaction_webhook` - trigger a synthetic Sandbox transaction webhook.
-- `create_demo_fraud_scenario` - generate a suspicious Sandbox transaction for demonstrations.
+- `simulate_transaction` - create a durable synthetic transaction in the configured provider.
+- `fire_transaction_webhook` - trigger a provider webhook when supported (no-op in Supabase mode).
+- `create_demo_fraud_scenario` - persist suspicious synthetic Banking evidence for demonstrations.
 
 ### Fraud MCP - 11 tools
 
@@ -171,8 +171,9 @@ Recommended supervisor flow:
 
 Before creating the Render service, open the Supabase SQL Editor and run these files in this order:
 
-1. `fraudMCP/app/database/migrations/001_fraud_mcp.sql`
-2. `case/app/database/migrations/001_case_mcp.sql`
+1. `plaidbanking/app/database/migrations/001_banking_store.sql`
+2. `fraudMCP/app/database/migrations/001_fraud_mcp.sql`
+3. `case/app/database/migrations/001_case_mcp.sql`
 
 Both migrations are non-destructive and may be run again. Alternatively, set either `SUPABASE_DB_URL` or a local-only `SUPABASE_ACCESS_TOKEN`, then run `python -m scripts.migrate_all` from this directory. Do not put either administrative credential in Render when `MCP_AUTO_MIGRATE=false`.
 
@@ -180,10 +181,10 @@ Both migrations are non-destructive and may be run again. Alternatively, set eit
 
 1. Push the repository to GitHub.
 2. In Render, choose **New > Blueprint**, select the repository, and set the Blueprint path to `mcp/render.yaml`. It creates exactly one service with type `web`.
-3. Enter the secret environment values requested by the blueprint: `PLAID_CLIENT_ID`, `PLAID_SECRET`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`.
+3. Set `BANKING_DATA_PROVIDER=supabase`, `MCP_PROVIDER_MODE=local`, `PLAID_AUTO_BOOTSTRAP=false`, plus `SUPABASE_URL` and one server-only Supabase secret key. Plaid credentials are not required in this mode.
 4. Render generates `MCP_AUTH_TOKEN`. Copy its value from the service environment page into every MCP client that calls this service.
 5. Deploy and wait for `/ready` to return HTTP 200.
-6. Set Plaid's webhook URL to `https://YOUR-SERVICE.onrender.com/webhooks/plaid`, then redeploy if you also set `PLAID_WEBHOOK_URL` in Render.
+6. Plaid webhook configuration is unnecessary in Supabase mode; the preserved route returns a provider-neutral no-op response.
 
 The three MCP client URLs are:
 
@@ -215,4 +216,4 @@ docker build -f mcp/Dockerfile -t thinkfive-mcp mcp
 docker run --rm --env-file mcp/.env -p 8000:8000 thinkfive-mcp
 ```
 
-The Dockerfile selectively copies source files and never copies `.env`. Plaid Sandbox data is reconstructed on restart when `PLAID_AUTO_BOOTSTRAP=true`; Fraud assessments, Fraud alerts, and all Case workflow records persist in Supabase.
+The Dockerfile selectively copies source files and never copies `.env`. In Supabase mode, Banking transactions, Fraud evidence, alerts, and Case workflow records all persist in the same Supabase project across restarts.

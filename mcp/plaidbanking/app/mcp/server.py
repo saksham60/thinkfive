@@ -15,8 +15,8 @@ from .tools import (
 
 def create_banking_mcp(container: Container) -> FastMCP:
     server = FastMCP(
-        name="Plaid Banking MCP",
-        instructions="Safe access to Plaid banking data. This server does not score fraud, manage cases, freeze cards, or orchestrate agents.",
+        name="ThinkFive Banking MCP",
+        instructions="Safe access to configured banking data. This server does not score fraud, manage cases, freeze cards, or orchestrate agents.",
     )
     register_account_tools(server, container)
     register_transaction_tools(server, container)

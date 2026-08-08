@@ -1,4 +1,4 @@
-"""Simulate a Plaid Sandbox transaction, then synchronize and verify it."""
+"""Simulate a provider-backed transaction, then synchronize and verify it."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class SimulateTransactionUseCase:
-    """Create a sandbox transaction and verify it through normal Banking MCP reads."""
+    """Create a synthetic transaction and verify it through normal Banking MCP reads."""
 
     _RECENT_LIMIT = 100
     _VERIFICATION_ATTEMPTS = 4
@@ -59,8 +59,8 @@ class SimulateTransactionUseCase:
             "synchronized": False,
             "transaction": None,
             "message": (
-                "Transaction was accepted by Plaid Sandbox but has not materialized "
-                "in transaction sync yet."
+                "Transaction was accepted by the banking provider but has not materialized "
+                "in the canonical transaction store yet."
             ),
         }
 

@@ -10,16 +10,16 @@ from .common import tool_response
 
 
 def register_identity_tools(mcp: FastMCP, container: Container) -> None:
-    source = f"plaid_{container.settings.plaid_env}"
+    source = container.source
 
     @mcp.tool(
-        description="Retrieve Identity data supplied by Plaid for the customer's linked accounts, including available owner names, emails, phone numbers, and addresses."
+        description="Retrieve customer identity data when supported by the configured banking provider."
     )
     async def get_customer_identity(customer_id: str) -> dict[str, Any]:
         return await tool_response(customer_id, source, lambda: container.banking.get_identity(customer_id))
 
     @mcp.tool(
-        description="Compare customer-supplied identity attributes using Plaid Identity Match when enabled. Use for evidence, not a fabricated identity decision."
+        description="Compare customer-supplied identity attributes when supported by the configured banking provider."
     )
     async def verify_customer_identity(
         customer_id: str, name: str | None = None, phone: str | None = None, email: str | None = None, address: dict[str, Any] | None = None

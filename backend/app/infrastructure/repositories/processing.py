@@ -50,7 +50,18 @@ class ProcessingStateRepository:
     async def has_baseline(self, customer_id: str) -> bool:
         """Check whether the first monitoring pass has already established a baseline."""
         val = await self.db.fetchval(
-            "SELECT 1 FROM transaction_processing_state WHERE customer_id = $1 LIMIT 1",
+            "SELECT 1 FROM transaction_monitor_state WHERE customer_id = $1",
             customer_id,
         )
         return val is not None
+
+    async def mark_baseline_established(self, customer_id: str, *, transaction_count: int) -> None:
+        await self.db.execute(
+            """
+            INSERT INTO transaction_monitor_state (customer_id, baseline_established_at, metadata)
+            VALUES ($1, NOW(), jsonb_build_object('transaction_count', $2))
+            ON CONFLICT (customer_id) DO NOTHING
+            """,
+            customer_id,
+            transaction_count,
+        )

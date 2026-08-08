@@ -10,6 +10,7 @@ import truststore
 from case.app.config import Settings as CaseSettings
 
 MIGRATIONS = (
+    Path(__file__).parent / "plaidbanking/app/database/migrations/001_banking_store.sql",
     Path(__file__).parent / "fraudMCP/app/database/migrations/001_fraud_mcp.sql",
     Path(__file__).parent / "case/app/database/migrations/001_case_mcp.sql",
 )

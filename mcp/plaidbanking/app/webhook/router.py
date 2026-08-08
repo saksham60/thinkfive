@@ -12,10 +12,15 @@ from .verification import PlaidWebhookVerifier
 
 def create_webhook_router(container: Container) -> APIRouter:
     router = APIRouter()
-    verifier = PlaidWebhookVerifier(container.plaid, container.settings.webhook_replay_seconds)
+    verifier = PlaidWebhookVerifier(container.plaid, container.settings.webhook_replay_seconds) if container.plaid is not None else None
 
     @router.post("/webhooks/plaid")
     async def plaid_webhook(request: Request) -> JSONResponse:
+        if verifier is None:
+            return JSONResponse(
+                {"accepted": True, "handled": False, "reason": "supabase_is_canonical_provider"},
+                status_code=202,
+            )
         raw_body = await request.body()
         try:
             await verifier.verify(raw_body, request.headers.get("Plaid-Verification"))

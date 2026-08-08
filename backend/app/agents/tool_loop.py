@@ -101,8 +101,10 @@ async def _execute_grounded_tool_loop(
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
             break
+        halt_after_tool_failure = False
         for call in tool_calls:
             name = call["name"]
+            arguments = call.get("args") or {}
             started = time.perf_counter()
             if event_publisher and run_id and conversation_id:
                 await event_publisher.publish(
@@ -113,7 +115,6 @@ async def _execute_grounded_tool_loop(
                     agent_name=agent_name, tool_name=name, status="started",
                 )
             try:
-                arguments = call.get("args") or {}
                 with trace(
                     f"tool.{name}",
                     run_type="tool",
@@ -134,7 +135,30 @@ async def _execute_grounded_tool_loop(
                         run_id=UUID(run_id), customer_id=customer_id, agent_name=agent_name,
                         tool_name=name, status="failed", duration_ms=duration_ms,
                     )
-                raise
+                # A specialist can already have useful grounded evidence when a later,
+                # optional action fails (for example: risk assessment succeeds but an
+                # alert is rejected by its threshold or uniqueness policy). Preserve
+                # that evidence and let the structured output summarize the partial
+                # result instead of throwing it away and restarting the whole agent.
+                error_code = getattr(exc, "code", type(exc).__name__)
+                safe_error = {
+                    "success": False,
+                    "error_code": str(error_code),
+                    "message": (
+                        "Tool execution failed. Preserve completed grounded evidence "
+                        "and do not claim this action succeeded."
+                    ),
+                }
+                evidence.append({"tool": name, "arguments": arguments, "error": safe_error})
+                transcript.append(
+                    ToolMessage(
+                        content=json.dumps(safe_error),
+                        tool_call_id=call.get("id") or name,
+                        name=name,
+                    )
+                )
+                halt_after_tool_failure = True
+                continue
             duration_ms = (time.perf_counter() - started) * 1000
             if event_publisher and run_id and conversation_id:
                 await event_publisher.publish(
@@ -168,6 +192,8 @@ async def _execute_grounded_tool_loop(
                     name=name,
                 )
             )
+        if halt_after_tool_failure:
+            break
     else:
         raise RuntimeError(f"Agent exceeded maximum tool rounds ({max_rounds})")
 

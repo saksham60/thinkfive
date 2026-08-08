@@ -118,6 +118,7 @@ class GraphRunner:
             "requested_transaction_id": requested_transaction_id,
             "current_goal": "",
             "primary_user_goal": "",
+            "customer_requested_formal_case": False,
             "memory_context": memory_context or {},
             "iteration_count": 0,
             "warnings": [],

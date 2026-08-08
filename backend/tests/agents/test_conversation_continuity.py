@@ -135,6 +135,8 @@ async def test_pending_confirmation_is_separate_from_operational_hitl() -> None:
                 "type": "transaction_selection",
                 "candidate": candidate,
                 "question": "Did you mean Coffee?",
+                "continuation_goal": "Report the selected transaction as fraud",
+                "customer_requested_formal_case": True,
             },
             "recent_transaction_candidates": [candidate],
             "iteration_count": 0,
@@ -144,7 +146,50 @@ async def test_pending_confirmation_is_separate_from_operational_hitl() -> None:
 
     assert result["requested_transaction_id"] == "txn-one"
     assert result["pending_confirmation"] is None
+    assert result["current_goal"] == "Report the selected transaction as fraud"
+    assert result["primary_user_goal"] == "Report the selected transaction as fraud"
+    assert result["customer_requested_formal_case"] is True
     assert "pending_human_action" not in result
+
+
+async def test_supervisor_routes_confirmed_customer_report_to_case_after_medium_assessment() -> None:
+    decision = SupervisorDecision(
+        next_agent="synthesis",
+        goal="Summarize the completed medium-risk assessment",
+        primary_user_goal="Report my last transaction as fraud",
+        reason="The fraud assessment is complete",
+    )
+    supervisor_agent = configured_agent(
+        llm=SimpleNamespace(ainvoke=AsyncMock(return_value=decision)),
+        prompt="supervisor prompt",
+        version="test",
+    )
+
+    result = await supervisor_node(
+        {
+            "messages": [HumanMessage(content="yes please")],
+            "active_transaction_id": "txn-125",
+            "requested_transaction_id": "txn-125",
+            "primary_user_goal": "Report my last transaction as fraud",
+            "customer_requested_formal_case": True,
+            "fraud_evidence": {
+                "assessment_id": "assessment-medium",
+                "alert_id": None,
+                "risk_score": 0.5,
+                "severity": "MEDIUM",
+                "requires_case": False,
+                "transaction_id": "txn-125",
+                "findings": "Medium risk assessment completed.",
+            },
+            "iteration_count": 2,
+        },
+        {"configurable": {"supervisor_agent": supervisor_agent, "max_iterations": 15}},
+    )
+
+    assert result["next_agent"] == "case", result
+    assert "TRANSACTION_DISPUTE" in result["current_goal"]
+    assert "Do not ask" in result["current_goal"]
+    assert result["customer_requested_formal_case"] is True
 
 
 async def test_banking_preserves_mcp_order_as_structured_candidates() -> None:

@@ -35,6 +35,15 @@ def _summarize_evidence(state: GraphState) -> str:
                     f"{evidence.get('transaction_resolution_status', 'unknown')}"
                     f"; requires_clarification={evidence.get('requires_clarification', False)}"
                 )
+            elif key == "fraud_evidence":
+                detail += (
+                    f"; assessment_id={evidence.get('assessment_id')}"
+                    f"; alert_id={evidence.get('alert_id')}"
+                    f"; risk_score={evidence.get('risk_score')}"
+                    f"; severity={evidence.get('severity')}"
+                    f"; requires_case={evidence.get('requires_case')}"
+                    f"; transaction_id={evidence.get('transaction_id')}"
+                )
             parts.append(detail)
     if not parts:
         memory = state.get("memory_context") or {}
@@ -123,6 +132,16 @@ def _matching_candidates(
     return matches
 
 
+def _contains_grounded_value(value: Any, key: str, expected: str) -> bool:
+    if isinstance(value, dict):
+        if str(value.get(key) or "") == expected:
+            return True
+        return any(_contains_grounded_value(child, key, expected) for child in value.values())
+    if isinstance(value, list):
+        return any(_contains_grounded_value(child, key, expected) for child in value)
+    return False
+
+
 async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]:
     """Supervisor node - decides routing via structured LLM output only."""
     logger.info("Supervisor Agent node executing")
@@ -207,8 +226,17 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
 
         next_agent = decision.next_agent
         pending_confirmation = state.get("pending_confirmation")
+        pending_context = pending_confirmation or {}
+        continuation_goal: str | None = None
+        customer_requested_formal_case = bool(
+            state.get("customer_requested_formal_case")
+            or decision.customer_requested_formal_case
+            or pending_context.get("customer_requested_formal_case")
+        )
         if decision.clear_pending_confirmation:
             pending_confirmation = None
+            pending_context = {}
+            customer_requested_formal_case = decision.customer_requested_formal_case
         requested_transaction_id = state.get("requested_transaction_id")
         selected_candidate: Any = None
 
@@ -223,6 +251,12 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
                         decision.clarification_question
                         or "That number is not in the displayed transaction list. Which transaction did you mean?"
                     ),
+                    "continuation_goal": (
+                        state.get("primary_user_goal")
+                        or decision.primary_user_goal
+                        or decision.goal
+                    ),
+                    "customer_requested_formal_case": customer_requested_formal_case,
                 }
         elif decision.reference_type == "merchant_amount":
             matches = _matching_candidates(
@@ -241,14 +275,26 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
                     "candidate": None,
                     "candidates": matches,
                     "question": decision.clarification_question,
+                    "continuation_goal": (
+                        state.get("primary_user_goal")
+                        or decision.primary_user_goal
+                        or decision.goal
+                    ),
+                    "customer_requested_formal_case": customer_requested_formal_case,
                 }
         elif decision.reference_type == "pending_confirmation":
             pending_candidate = (pending_confirmation or {}).get("candidate")
             if decision.confirmation == "accept" and isinstance(pending_candidate, dict):
                 selected_candidate = pending_candidate
+                continuation_goal = (pending_confirmation or {}).get("continuation_goal")
+                customer_requested_formal_case = bool(
+                    (pending_confirmation or {}).get("customer_requested_formal_case")
+                    or customer_requested_formal_case
+                )
                 pending_confirmation = None
             elif decision.confirmation == "reject":
                 pending_confirmation = None
+                customer_requested_formal_case = False
 
         requires_confirmation = bool(
             decision.needs_clarification
@@ -256,18 +302,30 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
             and decision.reference_type != "merchant_amount"
         )
         if requires_confirmation:
+            continuation_goal = (
+                state.get("primary_user_goal")
+                or decision.primary_user_goal
+                or decision.goal
+            )
             pending_confirmation = {
                 "type": "transaction_selection",
                 "candidate": selected_candidate,
                 "question": decision.clarification_question,
+                "continuation_goal": continuation_goal,
+                "customer_requested_formal_case": customer_requested_formal_case,
             }
             next_agent = "synthesis"
         elif selected_candidate and selected_candidate.get("transaction_id"):
             requested_transaction_id = str(selected_candidate["transaction_id"])
+            continuation_goal = continuation_goal or pending_context.get("continuation_goal")
+            if pending_context:
+                pending_confirmation = None
+            if requested_transaction_id != state.get("active_transaction_id"):
+                next_agent = "banking"
 
         routing_reason = decision.reason
         warnings = state.get("warnings", [])
-        current_goal = decision.goal
+        current_goal = continuation_goal or decision.goal
         if decision.reference_type == "merchant_amount":
             constraints = {
                 "merchant_or_description": decision.reference_merchant,
@@ -317,6 +375,12 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
                 "type": "transaction_details",
                 "candidate": None,
                 "question": question,
+                "continuation_goal": (
+                    state.get("primary_user_goal")
+                    or decision.primary_user_goal
+                    or decision.goal
+                ),
+                "customer_requested_formal_case": customer_requested_formal_case,
             }
             routing_reason = (
                 "Banking already attempted this lookup without resolving a verified transaction; "
@@ -324,14 +388,49 @@ async def supervisor_node(state: GraphState, config: RunnableConfig) -> dict[str
             )
             warnings = [*warnings, "Repeated unresolved Banking route prevented"]
 
+        primary_user_goal = (
+            continuation_goal
+            or state.get("primary_user_goal")
+            or decision.primary_user_goal
+            or decision.goal
+        )
+        active_transaction_id = state.get("active_transaction_id")
+        if customer_requested_formal_case and active_transaction_id:
+            fraud_evidence = state.get("fraud_evidence") or {}
+            assessment_matches = bool(fraud_evidence.get("assessment_id")) and (
+                fraud_evidence.get("transaction_id") == active_transaction_id
+            )
+            case_evidence = state.get("case_evidence") or {}
+            case_matches = bool(case_evidence.get("case_id")) and _contains_grounded_value(
+                case_evidence, "transaction_id", active_transaction_id
+            )
+            if not assessment_matches:
+                next_agent = "fraud"
+                current_goal = (
+                    f"Collect supporting fraud-risk evidence for the customer-confirmed transaction "
+                    f"while preserving the formal report/dispute goal: {primary_user_goal}"
+                )
+                routing_reason = (
+                    "The customer confirmed a formal transaction report; grounded fraud evidence "
+                    "is the next prerequisite and does not determine their right to dispute."
+                )
+            elif not case_matches:
+                next_agent = "case"
+                current_goal = (
+                    "Open a TRANSACTION_DISPUTE case for the customer-confirmed transaction. "
+                    "Attach the verified transaction_id and assessment_id, plus fraud_alert_id "
+                    "when one exists. Do not ask the customer to confirm or proceed again."
+                )
+                routing_reason = (
+                    "The customer already requested and confirmed a formal report; assessment "
+                    "evidence is complete and the dispute case is the remaining workflow step."
+                )
+
         return {
             "next_agent": next_agent,
             "current_goal": current_goal,
-            "primary_user_goal": (
-                state.get("primary_user_goal")
-                or decision.primary_user_goal
-                or decision.goal
-            ),
+            "primary_user_goal": primary_user_goal,
+            "customer_requested_formal_case": customer_requested_formal_case,
             "routing_reason": routing_reason,
             "iteration_count": iteration_count,
             "requested_transaction_id": requested_transaction_id,

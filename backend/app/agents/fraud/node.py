@@ -21,6 +21,7 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
     logger.info("Fraud Agent node executing")
 
     current_goal = state.get("current_goal", "")
+    primary_user_goal = state.get("primary_user_goal") or current_goal
     active_transaction_id = state.get("active_transaction_id")
 
     if not active_transaction_id:
@@ -55,7 +56,16 @@ async def fraud_node(state: GraphState, config: RunnableConfig) -> dict[str, Any
 
     messages = [
         SystemMessage(content=prompt),
-        HumanMessage(content=f"Goal: {current_goal}\n\nAssess fraud risk using available evidence."),
+        HumanMessage(
+            content=(
+                f"Primary customer workflow goal: {primary_user_goal}\n"
+                f"Current prerequisite goal: {current_goal}\n"
+                f"Customer explicitly requested a formal case: "
+                f"{state.get('customer_requested_formal_case', False)}\n\n"
+                "Collect grounded fraud-risk evidence for the verified transaction. Risk severity "
+                "controls fraud-alert eligibility, but must not cancel a customer-requested dispute."
+            )
+        ),
     ]
 
     try:

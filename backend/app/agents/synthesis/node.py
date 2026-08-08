@@ -45,6 +45,8 @@ def _build_evidence_bundle(state: GraphState) -> str:
         bundle["pending_confirmation"] = state["pending_confirmation"]
     if state.get("primary_user_goal"):
         bundle["primary_user_goal"] = state["primary_user_goal"]
+    if state.get("customer_requested_formal_case"):
+        bundle["customer_requested_formal_case"] = True
     if state.get("conversation_summary"):
         bundle["conversation_summary"] = state["conversation_summary"]
     recent_turns: list[dict[str, Any]] = []

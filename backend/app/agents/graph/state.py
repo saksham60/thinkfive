@@ -40,6 +40,7 @@ class GraphState(TypedDict, total=False):
     # Supervisor routing
     current_goal: str
     primary_user_goal: str
+    customer_requested_formal_case: bool
     next_agent: str
     routing_reason: str
     conversation_summary: str | None

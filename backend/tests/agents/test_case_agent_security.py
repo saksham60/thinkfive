@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from app.agents.case.toolset import AUTONOMOUS_ALLOWED_TOOLS, FORBIDDEN_TOOLS, CaseToolset
@@ -32,3 +34,32 @@ class TestCaseAgentSecurityBoundary:
 
     def test_request_approval_is_allowed(self) -> None:
         assert "request_approval" in AUTONOMOUS_ALLOWED_TOOLS
+
+
+async def test_create_case_forwards_transaction_and_assessment_references() -> None:
+    adapter = _FakeCaseAdapter()
+    adapter.create_case = AsyncMock(return_value={"case_id": "case-1"})  # type: ignore[attr-defined]
+    toolset = CaseToolset(adapter, customer_id="demo_customer_001")  # type: ignore[arg-type]
+
+    result = await toolset.execute_tool(
+        "create_case",
+        {
+            "case_type": "TRANSACTION_DISPUTE",
+            "title": "Customer-reported transaction",
+            "description": "Customer confirmed this transaction was unauthorized.",
+            "transaction_id": "txn-125",
+            "assessment_id": "assessment-medium",
+            "fraud_alert_id": "alert-optional",
+        },
+    )
+
+    assert result == {"case_id": "case-1"}
+    adapter.create_case.assert_awaited_once_with(  # type: ignore[attr-defined]
+        customer_id="demo_customer_001",
+        case_type="TRANSACTION_DISPUTE",
+        title="Customer-reported transaction",
+        description="Customer confirmed this transaction was unauthorized.",
+        transaction_id="txn-125",
+        assessment_id="assessment-medium",
+        fraud_alert_id="alert-optional",
+    )

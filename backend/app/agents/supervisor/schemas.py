@@ -16,6 +16,13 @@ class SupervisorDecision(BaseModel):
         default=None,
         description="The customer's overall goal, preserved while prerequisites are gathered",
     )
+    customer_requested_formal_case: bool = Field(
+        default=False,
+        description=(
+            "True only when the customer explicitly asks to report, dispute, or formally "
+            "investigate an unauthorized transaction; independent of model risk severity"
+        ),
+    )
     reason: str = Field(description="Why this agent/goal was chosen given current evidence")
     evidence_required: list[str] = Field(
         default_factory=list,

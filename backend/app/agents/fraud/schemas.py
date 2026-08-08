@@ -25,6 +25,10 @@ class FraudAgentOutput(BaseModel):
     risk_score: float | None = Field(default=None, description="Actual risk score returned by Fraud MCP")
     severity: str | None = None
     requires_case: bool = Field(
-        default=False, description="True if this risk level warrants case creation"
+        default=False,
+        description=(
+            "True when risk evidence warrants investigation OR the preserved customer workflow "
+            "explicitly requires a report/dispute case; not determined solely by severity"
+        ),
     )
     warnings: list[str] = Field(default_factory=list)

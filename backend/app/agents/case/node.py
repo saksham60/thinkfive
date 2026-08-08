@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -32,13 +33,27 @@ async def case_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]
     toolset = agent_config["toolset"]
 
     fraud_evidence = state.get("fraud_evidence", {})
-    context_note = ""
-    if fraud_evidence:
-        context_note = f"\nFraud evidence: {fraud_evidence.get('findings', '')}"
+    case_context = {
+        "primary_user_goal": state.get("primary_user_goal"),
+        "customer_requested_formal_case": state.get(
+            "customer_requested_formal_case", False
+        ),
+        "verified_transaction_id": state.get("active_transaction_id"),
+        "assessment_id": fraud_evidence.get("assessment_id"),
+        "fraud_alert_id": fraud_evidence.get("alert_id"),
+        "risk_score": fraud_evidence.get("risk_score"),
+        "severity": fraud_evidence.get("severity"),
+        "fraud_findings": fraud_evidence.get("findings"),
+    }
 
     messages = [
         SystemMessage(content=prompt),
-        HumanMessage(content=f"Goal: {current_goal}{context_note}"),
+        HumanMessage(
+            content=(
+                f"Goal: {current_goal}\n\n"
+                f"Grounded workflow context: {json.dumps(case_context, default=str)}"
+            )
+        ),
     ]
 
     try:
@@ -58,6 +73,15 @@ async def case_node(state: GraphState, config: RunnableConfig) -> dict[str, Any]
                 "findings": case_output.findings,
                 "case_id": find_grounded_value(grounded.tool_results, "case_id"),
                 "approval_id": find_grounded_value(grounded.tool_results, "approval_id"),
+                "transaction_id": find_grounded_value(
+                    grounded.tool_results, "transaction_id"
+                ),
+                "assessment_id": find_grounded_value(
+                    grounded.tool_results, "assessment_id"
+                ),
+                "fraud_alert_id": find_grounded_value(
+                    grounded.tool_results, "fraud_alert_id"
+                ),
             }
 
             update: dict[str, Any] = {
